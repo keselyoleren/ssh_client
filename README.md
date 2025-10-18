@@ -27,9 +27,11 @@ To run this project, you will need to have Docker and Docker Compose installed.
 2.  **Create a `.env` file:**
     Create a `.env` file in the root of the project and add the following environment variables:
     ```
-    POSTGRES_USER=your_postgres_user
-    POSTGRES_PASSWORD=your_postgres_password
-    POSTGRES_DB=your_postgres_db
+    POSTGRES_USER=
+    POSTGRES_PASSWORD=
+    POSTGRES_HOST=
+    POSTGRES_PORT=
+    POSTGRES_DB=
     ```
 
 3.  **Run with Docker Compose:**
