@@ -9,22 +9,8 @@ This is a FastAPI application that provides an API for managing SSH connections 
 
 ## Demo
 
-[![Project Demo](https://via.placeholder.com/800x450.png?text=Project+Demo)](https://example.com/path/to/your/video.mp4)
+[![Project Demo](https://github.com/user-attachments/assets/bda99407-0431-49ca-98c0-c7b5b4dc6380)]
 
-*Replace the image and link with your own project demo video.*
-
-## Dependencies
-
-The main dependencies are:
-*   fastapi
-*   uvicorn
-*   sqlalchemy
-*   alembic
-*   psycopg2-binary
-*   paramiko
-*   websockets
-*   jinja2
-*   pydantic-settings
 
 For a full list of dependencies, please see the `requirements.txt` file.
 
