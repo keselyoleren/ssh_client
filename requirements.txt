@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+paramiko
+websockets
+jinja2
+psycopg2-binary
+SQLAlchemy
+alembic
+pydantic-settings
