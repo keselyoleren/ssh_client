@@ -9,7 +9,7 @@ This is a FastAPI application that provides an API for managing SSH connections 
 
 ## Demo
 
-[![Project Demo](https://github.com/user-attachments/assets/bda99407-0431-49ca-98c0-c7b5b4dc6380)]
+[![Project Demo](https://github.com/user-attachments/assets/bda99407-0431-49ca-98c0-c7b5b4dc6380)](https://github.com/user-attachments/assets/bda99407-0431-49ca-98c0-c7b5b4dc6380)
 
 
 For a full list of dependencies, please see the `requirements.txt` file.
