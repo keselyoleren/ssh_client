@@ -3,13 +3,14 @@ import paramiko
 import asyncio
 
 from fastapi import APIRouter, Depends, Request, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocketDisconnect
 from app.crud import crud_user
 from app.dependencies import get_db
 from app.schemas import user_schema
+from app.core.jwt_auth import get_current_active_user
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,12 @@ templates = Jinja2Templates(directory="templates")
 
 @router.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    """Serve main application page - authentication handled by frontend"""
     return templates.TemplateResponse("index.html", {"request": request})
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
 @router.post("/clients")
 async def create_client(client: user_schema.SSHClient, db: Session = Depends(get_db)):

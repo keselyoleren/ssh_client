@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Client - Login</title>
+    <link rel="stylesheet" href="/css/login.css">
+</head>
+<body>
+    <div class="login-container">
+        <!-- Settings Menu -->
+        <div class="settings-menu">
+            <div class="settings-dropdown">
+                <button class="settings-toggle" onclick="toggleSettingsMenu()">
+                    ⚙
+                </button>
+                <div class="settings-menu-content" id="settingsMenuContent">
+                    <div class="settings-menu-header">
+                        <h3>Account Settings</h3>
+                        <p>Manage your account preferences</p>
+                    </div>
+                    <div class="settings-menu-item" onclick="showChangeEmailForm()">
+                        <span class="settings-menu-icon">✉</span>
+                        <div class="settings-menu-text">
+                            <h4>Change Email</h4>
+                            <p>Update your email address</p>
+                        </div>
+                    </div>
+                    <div class="settings-menu-item" onclick="showChangePasswordForm()">
+                        <span class="settings-menu-icon">🔒</span>
+                        <div class="settings-menu-text">
+                            <h4>Change Password</h4>
+                            <p>Update your password</p>
+                        </div>
+                    </div>
+                    <div class="settings-menu-item" onclick="showLogin()">
+                        <span class="settings-menu-icon">←</span>
+                        <div class="settings-menu-text">
+                            <h4>Back to Login</h4>
+                            <p>Return to sign in</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+
+        <!-- Main Login Form -->
+        <div id="loginForm" class="login-form">
+            <div class="login-header">
+                <h1>Welcome Back</h1>
+                <p>Sign in to your SSH Client account</p>
+            </div>
+
+            <form id="emailPasswordForm">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-input" placeholder="Enter your email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="password-group">
+                        <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            👁
+                        </button>
+                    </div>
+                </div>
+
+                <div class="remember-forgot">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="remember" name="remember" class="checkbox">
+                        <label for="remember" class="checkbox-label">Remember me</label>
+                    </div>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn" id="loginBtn">
+                    <span class="loading-spinner" id="loginSpinner"></span>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="divider">
+                <span>OR</span>
+            </div>
+
+            <button type="button" class="btn btn-secondary" onclick="showTestMFA()">
+                Test MFA Flow
+            </button>
+
+            <div class="register-link">
+                Don't have an account? <a href="#">Sign up</a>
+            </div>
+        </div>
+
+        <!-- Multi-Factor Authentication -->
+        <div id="mfaContainer" class="mfa-container">
+            <button type="button" class="back-button" onclick="showLogin()">
+                ← Back to login
+            </button>
+
+            <div class="mfa-header">
+                <h2>Two-Factor Authentication</h2>
+                <p>Choose your preferred authentication method to complete sign in</p>
+            </div>
+
+            <!-- MFA Method Selection -->
+            <div id="mfaMethodSelection" class="mfa-step">
+                <div class="mfa-methods">
+                    <div class="mfa-method" data-method="app" onclick="selectMFAMethod('app')">
+                        <div class="mfa-method-icon">📱</div>
+                        <div class="mfa-method-info">
+                            <h4>Authenticator App</h4>
+                            <p>Use your authenticator app to get verification code</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="sms" onclick="selectMFAMethod('sms')">
+                        <div class="mfa-method-icon">💬</div>
+                        <div class="mfa-method-info">
+                            <h4>SMS Text Message</h4>
+                            <p>Receive verification code via SMS to ••• •••• 1234</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="email" onclick="selectMFAMethod('email')">
+                        <div class="mfa-method-icon">📧</div>
+                        <div class="mfa-method-info">
+                            <h4>Email</h4>
+                            <p>Receive verification code via email</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="backup" onclick="selectMFAMethod('backup')">
+                        <div class="mfa-method-icon">🔑</div>
+                        <div class="mfa-method-info">
+                            <h4>Backup Codes</h4>
+                            <p>Use one of your saved backup codes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn" id="continueBtn" onclick="showCodeEntry()" disabled>
+                    Continue
+                </button>
+            </div>
+
+            <!-- Code Entry -->
+            <div id="mfaCodeEntry" class="mfa-step" style="display: none;">
+                <div class="mfa-header">
+                    <h2 id="codeEntryTitle">Enter Verification Code</h2>
+                    <p id="codeEntryDescription">Enter the 6-digit code from your authenticator app</p>
+                </div>
+
+                <form id="mfaCodeForm">
+                    <div class="code-input-group">
+                        <input type="text" class="code-input" maxlength="1" data-index="0">
+                        <input type="text" class="code-input" maxlength="1" data-index="1">
+                        <input type="text" class="code-input" maxlength="1" data-index="2">
+                        <input type="text" class="code-input" maxlength="1" data-index="3">
+                        <input type="text" class="code-input" maxlength="1" data-index="4">
+                        <input type="text" class="code-input" maxlength="1" data-index="5">
+                    </div>
+
+                    <div class="resend-code">
+                        <a href="#" class="resend-link" id="resendLink" onclick="resendCode()">
+                            Didn't receive a code? Resend
+                        </a>
+                    </div>
+
+                    <div class="remember-device">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="rememberDevice" name="rememberDevice" class="checkbox">
+                            <label for="rememberDevice" class="checkbox-label">
+                                Remember this device for 30 days
+                                <span class="checkbox-help">Skip MFA on this device</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn" id="verifyBtn">
+                        <span class="loading-spinner" id="verifySpinner"></span>
+                        Verify & Sign In
+                    </button>
+                </form>
+
+                <button type="button" class="btn btn-secondary" onclick="showMethodSelection()">
+                    Try Different Method
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Email Form -->
+    <div class="login-container change-form" id="changeEmailForm">
+        <button type="button" class="back-button" onclick="showLogin()">
+            ← Back to login
+        </button>
+
+        <div class="change-form-header">
+            <h2>Change Email Address</h2>
+            <p>Update your email address for account security</p>
+        </div>
+
+        <div class="current-info">
+            Current email: <strong id="currentEmail">user@example.com</strong>
+        </div>
+
+        <form id="emailChangeForm">
+            <div class="form-group">
+                <label for="currentPassword" class="form-label">Current Password</label>
+                <div class="password-group">
+                    <input type="password" id="currentPassword" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPassword')">👁</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="newEmail" class="form-label">New Email Address</label>
+                <input type="email" id="newEmail" name="newEmail" class="form-input" placeholder="Enter your new email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmEmail" class="form-label">Confirm New Email</label>
+                <input type="email" id="confirmEmail" name="confirmEmail" class="form-input" placeholder="Confirm your new email" required>
+            </div>
+
+            <button type="submit" class="btn" id="changeEmailBtn">
+                <span class="loading-spinner" id="emailSpinner"></span>
+                Update Email Address
+            </button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <p style="font-size: 12px; color: #6c727f;">
+                A verification email will be sent to your new address
+            </p>
+        </div>
+    </div>
+
+    <!-- Change Password Form -->
+    <div class="login-container change-form" id="changePasswordForm">
+        <button type="button" class="back-button" onclick="showLogin()">
+            ← Back to login
+        </button>
+
+        <div class="change-form-header">
+            <h2>Change Password</h2>
+            <p>Create a strong, unique password for your account</p>
+        </div>
+
+        <form id="passwordChangeForm">
+            <div class="form-group">
+                <label for="currentPasswordChange" class="form-label">Current Password</label>
+                <div class="password-group">
+                    <input type="password" id="currentPasswordChange" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPasswordChange')">👁</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="newPassword" class="form-label">New Password</label>
+                <div class="password-group">
+                    <input type="password" id="newPassword" name="newPassword" class="form-input" placeholder="Enter your new password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('newPassword')">👁</button>
+                </div>
+                <div class="strength-meter">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strengthFill"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText">Password strength: Weak</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                <div class="password-group">
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Confirm your new password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('confirmPassword')">👁</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: #6c727f; margin-bottom: 10px;">Password requirements:</div>
+                <div id="passwordRequirements" style="font-size: 11px; color: #6c727f;">
+                    <div class="requirement" id="lengthReq">• At least 8 characters</div>
+                    <div class="requirement" id="uppercaseReq">• One uppercase letter</div>
+                    <div class="requirement" id="lowercaseReq">• One lowercase letter</div>
+                    <div class="requirement" id="numberReq">• One number</div>
+                    <div class="requirement" id="specialReq">• One special character</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="changePasswordBtn">
+                <span class="loading-spinner" id="passwordSpinner"></span>
+                Update Password
+            </button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <p style="font-size: 12px; color: #6c727f;">
+                You'll be signed out from all devices after changing your password
+            </p>
+        </div>
+    </div>
+
+    <script src="/js/login.js"></script>
+</body>
+</html>
