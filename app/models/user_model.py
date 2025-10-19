@@ -54,3 +54,4 @@ class SSHClient(Base):
     username = Column(String)
     password = Column(String, nullable=True)
     private_key = Column(String, nullable=True)
+    detected_os = Column(String, nullable=True)  # Operating system detected from SSH connection

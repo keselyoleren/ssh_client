@@ -773,6 +773,48 @@ body {
     background: #c23e6a;
 }
 
+.btn-success {
+    background: #28a745;
+    color: #fff;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+/* Context Menu Styles */
+.client-context-menu {
+    background: #2d2d2d;
+    border: 1px solid #4a4a4a;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 150px;
+}
+
+.context-menu-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    color: #ffffff;
+    font-size: 14px;
+    transition: background-color 0.2s ease;
+}
+
+.context-menu-item:hover {
+    background: #3a3a3a;
+}
+
+.context-menu-item:first-child {
+    border-radius: 6px 6px 0 0;
+}
+
+.context-menu-item:last-child {
+    border-radius: 0 0 6px 6px;
+}
+
+.context-menu-item:only-child {
+    border-radius: 6px;
+}
+
 .backup-codes-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

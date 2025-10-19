@@ -1,6 +1,7 @@
 import logging
 import paramiko
 import asyncio
+import time
 
 from fastapi import APIRouter, Depends, Request, WebSocket
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -46,6 +47,94 @@ async def update_client(client_id: int, client: user_schema.SSHClient, db: Sessi
 @router.delete("/clients/{client_id}")
 async def delete_client(client_id: int, db: Session = Depends(get_db)):
     return crud_user.delete_client(db=db, client_id=client_id)
+
+
+def detect_operating_system(ssh_client):
+    """Detect operating system through SSH connection"""
+    try:
+        # Execute uname command to detect OS
+        stdin, stdout, stderr = ssh_client.exec_command('uname -s', timeout=5)
+        os_output = stdout.read().decode().strip().lower()
+        
+        if 'linux' in os_output:
+            # Try to detect specific Linux distribution
+            stdin, stdout, stderr = ssh_client.exec_command('cat /etc/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || echo "linux"', timeout=5)
+            distro_output = stdout.read().decode().lower()
+            
+            if 'ubuntu' in distro_output:
+                return 'ubuntu'
+            elif 'debian' in distro_output:
+                return 'debian'
+            elif 'centos' in distro_output or 'red hat' in distro_output:
+                return 'redhat'
+            elif 'fedora' in distro_output:
+                return 'fedora'
+            elif 'alpine' in distro_output:
+                return 'alpine'
+            elif 'arch' in distro_output:
+                return 'arch'
+            else:
+                return 'linux'
+                
+        elif 'darwin' in os_output:
+            return 'macos'
+        elif 'freebsd' in os_output:
+            return 'freebsd'
+        elif 'openbsd' in os_output:
+            return 'openbsd'
+        else:
+            # Try Windows detection
+            stdin, stdout, stderr = ssh_client.exec_command('ver', timeout=5)
+            windows_output = stdout.read().decode().lower()
+            if 'windows' in windows_output or 'microsoft' in windows_output:
+                return 'windows'
+            return 'unknown'
+            
+    except Exception as e:
+        logger.error(f"OS detection failed: {e}")
+        return 'unknown'
+
+
+@router.post("/clients/{client_id}/detect-os")
+async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
+    """Detect and update the operating system of an SSH client"""
+    client_details = crud_user.get_client(db=db, client_id=client_id)
+    if not client_details:
+        return {"error": "Client not found"}
+    
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        # Connect to SSH server
+        if client_details.private_key:
+            from io import StringIO
+            private_key = paramiko.RSAKey.from_private_key(StringIO(client_details.private_key))
+            ssh.connect(client_details.host, client_details.port, client_details.username, pkey=private_key, timeout=10)
+        else:
+            ssh.connect(client_details.host, client_details.port, client_details.username, client_details.password, timeout=10)
+        
+        # Detect OS
+        detected_os = detect_operating_system(ssh)
+        ssh.close()
+        
+        # Update the client with detected OS
+        client_data = user_schema.SSHClient(
+            label=client_details.label,
+            host=client_details.host,
+            port=client_details.port,
+            username=client_details.username,
+            password=client_details.password,
+            private_key=client_details.private_key,
+            detected_os=detected_os
+        )
+        
+        updated_client = crud_user.update_client(db=db, client_id=client_id, client=client_data)
+        return {"detected_os": detected_os, "client": updated_client}
+        
+    except Exception as e:
+        logger.error(f"OS detection failed for client {client_id}: {e}")
+        return {"error": f"Failed to detect OS: {str(e)}", "detected_os": "unknown"}
 
 
 @router.websocket("/ws/{client_id}")
