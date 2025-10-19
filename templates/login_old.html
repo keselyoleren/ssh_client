@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSH Client - Login</title>
+    <link rel="stylesheet" href="css/login.css">
+</head>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1d29;
+            color: #e4e6eb;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: #23273a;
+            padding: 40px;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .login-header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #e4e6eb;
+        }
+
+        .login-header p {
+            color: #6c727f;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            color: #e4e6eb;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #2e3247;
+            border: 2px solid #3d4558;
+            padding: 14px 16px;
+            border-radius: 10px;
+            color: #e4e6eb;
+            font-size: 14px;
+            transition: all 0.25s ease;
+            outline: none;
+        }
+
+        .form-input:focus {
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 1px #4a9eff;
+        }
+
+        .form-input::placeholder {
+            color: #6c727f;
+        }
+
+        .password-group {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #6c727f;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+        }
+
+        .password-toggle:hover {
+            color: #4a9eff;
+        }
+
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #4a9eff;
+        }
+
+        .checkbox-label {
+            font-size: 13px;
+            color: #6c727f;
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            color: #4a9eff;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .forgot-link:hover {
+            color: #3d8ee6;
+        }
+
+        .btn {
+            width: 100%;
+            background: #4a9eff;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            background: #3d8ee6;
+        }
+
+        .btn:disabled {
+            background: #3a3f5c;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .btn-secondary {
+            background: #3a3f5c;
+            color: #e4e6eb;
+        }
+
+        .btn-secondary:hover {
+            background: #464c68;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 30px 0;
+            position: relative;
+            color: #6c727f;
+            font-size: 12px;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #3d4558;
+        }
+
+        .divider span {
+            background: #23273a;
+            padding: 0 15px;
+        }
+
+        .register-link {
+            text-align: center;
+            color: #6c727f;
+            font-size: 13px;
+        }
+
+        .register-link a {
+            color: #4a9eff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .register-link a:hover {
+            color: #3d8ee6;
+        }
+
+        /* MFA Form Styles */
+        .mfa-container {
+            display: none;
+        }
+
+        .mfa-container.active {
+            display: block;
+        }
+
+        .mfa-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .mfa-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #e4e6eb;
+        }
+
+        .mfa-header p {
+            color: #6c727f;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .mfa-methods {
+            margin-bottom: 30px;
+        }
+
+        .mfa-method {
+            background: #2e3247;
+            border: 2px solid #3d4558;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .mfa-method:hover {
+            border-color: #4a9eff;
+            background: #343a4f;
+        }
+
+        .mfa-method.selected {
+            border-color: #4a9eff;
+            background: #343a4f;
+            box-shadow: 0 0 0 1px #4a9eff;
+        }
+
+        .mfa-method-icon {
+            width: 24px;
+            height: 24px;
+            color: #4a9eff;
+            font-size: 18px;
+        }
+
+        .mfa-method-info h4 {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e4e6eb;
+            margin-bottom: 2px;
+        }
+
+        .mfa-method-info p {
+            font-size: 12px;
+            color: #6c727f;
+        }
+
+        .code-input-group {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .code-input {
+            width: 48px;
+            height: 56px;
+            background: #2e3247;
+            border: 2px solid #3d4558;
+            border-radius: 10px;
+            color: #e4e6eb;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+
+        .code-input:focus {
+            border-color: #4a9eff;
+            box-shadow: 0 0 0 1px #4a9eff;
+        }
+
+        .resend-code {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .resend-link {
+            color: #4a9eff;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .resend-link:hover {
+            color: #3d8ee6;
+        }
+
+        .resend-link:disabled,
+        .resend-link.disabled {
+            color: #6c727f;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .back-button {
+            background: none;
+            border: none;
+            color: #6c727f;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 20px;
+            padding: 4px 0;
+        }
+
+        .back-button:hover {
+            color: #4a9eff;
+        }
+
+        .error-message {
+            background: #ff4466;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            background: #00cc88;
+            color: #fff;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid transparent;
+            border-top: 2px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        .loading-spinner.show {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Settings Menu Styles */
+        .settings-menu {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .settings-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .settings-toggle {
+            background: #3a3f5c;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            color: #e4e6eb;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .settings-toggle:hover {
+            background: #464c68;
+            transform: rotate(90deg);
+        }
+
+        .settings-menu-content {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: #2e3247;
+            border: 2px solid #3d4558;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            min-width: 220px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .settings-menu-content.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .settings-menu-content::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            right: 16px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid #3d4558;
+        }
+
+        .settings-menu-content::after {
+            content: '';
+            position: absolute;
+            top: -6px;
+            right: 16px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid #2e3247;
+        }
+
+        .settings-menu-header {
+            padding: 15px;
+            border-bottom: 1px solid #3d4558;
+        }
+
+        .settings-menu-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #e4e6eb;
+            margin: 0;
+        }
+
+        .settings-menu-header p {
+            font-size: 12px;
+            color: #6c727f;
+            margin: 4px 0 0 0;
+        }
+
+        .settings-menu-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #3d4558;
+        }
+
+        .settings-menu-item:last-child {
+            border-bottom: none;
+        }
+
+        .settings-menu-item:hover {
+            background: #343a4f;
+        }
+
+        .settings-menu-icon {
+            width: 18px;
+            height: 18px;
+            font-size: 14px;
+        }
+
+        .settings-menu-text {
+            flex: 1;
+        }
+
+        .settings-menu-text h4 {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e4e6eb;
+            margin: 0 0 2px 0;
+        }
+
+        .settings-menu-text p {
+            font-size: 11px;
+            color: #6c727f;
+            margin: 0;
+        }
+
+        /* Change Forms Styles */
+        .change-form {
+            display: none;
+        }
+
+        .change-form.active {
+            display: block;
+        }
+
+        .change-form-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .change-form-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #e4e6eb;
+        }
+
+        .change-form-header p {
+            color: #6c727f;
+            font-size: 14px;
+        }
+
+        .current-info {
+            background: #2e3247;
+            border: 1px solid #3d4558;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .current-info strong {
+            color: #4a9eff;
+        }
+
+        .form-group-inline {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .strength-meter {
+            margin-top: 8px;
+        }
+
+        .strength-bar {
+            height: 4px;
+            background: #3d4558;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            width: 0%;
+            transition: all 0.3s;
+            border-radius: 2px;
+        }
+
+        .strength-fill.weak {
+            background: #d84f76;
+            width: 25%;
+        }
+
+        .strength-fill.fair {
+            background: #ffbb33;
+            width: 50%;
+        }
+
+        .strength-fill.good {
+            background: #4a9eff;
+            width: 75%;
+        }
+
+        .strength-fill.strong {
+            background: #00cc88;
+            width: 100%;
+        }
+
+        .strength-text {
+            font-size: 12px;
+            margin-top: 4px;
+            color: #6c727f;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 30px 25px;
+                margin: 0 10px;
+            }
+
+            .code-input-group {
+                gap: 6px;
+            }
+
+            .code-input {
+                width: 42px;
+                height: 50px;
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <!-- Settings Menu -->
+        <div class="settings-menu">
+            <div class="settings-dropdown">
+                <button class="settings-toggle" onclick="toggleSettingsMenu()">
+                    ⚙
+                </button>
+                <div class="settings-menu-content" id="settingsMenuContent">
+                    <div class="settings-menu-header">
+                        <h3>Account Settings</h3>
+                        <p>Manage your account preferences</p>
+                    </div>
+                    <div class="settings-menu-item" onclick="showChangeEmailForm()">
+                        <span class="settings-menu-icon">✉</span>
+                        <div class="settings-menu-text">
+                            <h4>Change Email</h4>
+                            <p>Update your email address</p>
+                        </div>
+                    </div>
+                    <div class="settings-menu-item" onclick="showChangePasswordForm()">
+                        <span class="settings-menu-icon">🔒</span>
+                        <div class="settings-menu-text">
+                            <h4>Change Password</h4>
+                            <p>Update your password</p>
+                        </div>
+                    </div>
+                    <div class="settings-menu-item" onclick="showLogin()">
+                        <span class="settings-menu-icon">←</span>
+                        <div class="settings-menu-text">
+                            <h4>Back to Login</h4>
+                            <p>Return to sign in</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error/Success Messages -->
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+
+        <!-- Main Login Form -->
+        <div id="loginForm" class="login-form">
+            <div class="login-header">
+                <h1>Welcome Back</h1>
+                <p>Sign in to your SSH Client account</p>
+            </div>
+
+            <form id="emailPasswordForm">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-input" placeholder="Enter your email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="password-group">
+                        <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                            👁
+                        </button>
+                    </div>
+                </div>
+
+                <div class="remember-forgot">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="remember" name="remember" class="checkbox">
+                        <label for="remember" class="checkbox-label">Remember me</label>
+                    </div>
+                    <a href="#" class="forgot-link">Forgot password?</a>
+                </div>
+
+                <button type="submit" class="btn" id="loginBtn">
+                    <span class="loading-spinner" id="loginSpinner"></span>
+                    Sign In
+                </button>
+            </form>
+
+            <div class="divider">
+                <span>OR</span>
+            </div>
+
+            <button type="button" class="btn btn-secondary" onclick="showTestMFA()">
+                Test MFA Flow
+            </button>
+
+            <div class="register-link">
+                Don't have an account? <a href="#">Sign up</a>
+            </div>
+        </div>
+
+        <!-- Multi-Factor Authentication -->
+        <div id="mfaContainer" class="mfa-container">
+            <button type="button" class="back-button" onclick="showLogin()">
+                ← Back to login
+            </button>
+
+            <div class="mfa-header">
+                <h2>Two-Factor Authentication</h2>
+                <p>Choose your preferred authentication method to complete sign in</p>
+            </div>
+
+            <!-- MFA Method Selection -->
+            <div id="mfaMethodSelection" class="mfa-step">
+                <div class="mfa-methods">
+                    <div class="mfa-method" data-method="app" onclick="selectMFAMethod('app')">
+                        <div class="mfa-method-icon">📱</div>
+                        <div class="mfa-method-info">
+                            <h4>Authenticator App</h4>
+                            <p>Use your authenticator app to get verification code</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="sms" onclick="selectMFAMethod('sms')">
+                        <div class="mfa-method-icon">💬</div>
+                        <div class="mfa-method-info">
+                            <h4>SMS Text Message</h4>
+                            <p>Receive verification code via SMS to ••• •••• 1234</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="email" onclick="selectMFAMethod('email')">
+                        <div class="mfa-method-icon">📧</div>
+                        <div class="mfa-method-info">
+                            <h4>Email</h4>
+                            <p>Receive verification code via email</p>
+                        </div>
+                    </div>
+
+                    <div class="mfa-method" data-method="backup" onclick="selectMFAMethod('backup')">
+                        <div class="mfa-method-icon">🔑</div>
+                        <div class="mfa-method-info">
+                            <h4>Backup Codes</h4>
+                            <p>Use one of your saved backup codes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn" id="continueBtn" onclick="showCodeEntry()" disabled>
+                    Continue
+                </button>
+            </div>
+
+            <!-- Code Entry -->
+            <div id="mfaCodeEntry" class="mfa-step" style="display: none;">
+                <div class="mfa-header">
+                    <h2 id="codeEntryTitle">Enter Verification Code</h2>
+                    <p id="codeEntryDescription">Enter the 6-digit code from your authenticator app</p>
+                </div>
+
+                <form id="mfaCodeForm">
+                    <div class="code-input-group">
+                        <input type="text" class="code-input" maxlength="1" data-index="0">
+                        <input type="text" class="code-input" maxlength="1" data-index="1">
+                        <input type="text" class="code-input" maxlength="1" data-index="2">
+                        <input type="text" class="code-input" maxlength="1" data-index="3">
+                        <input type="text" class="code-input" maxlength="1" data-index="4">
+                        <input type="text" class="code-input" maxlength="1" data-index="5">
+                    </div>
+
+                    <div class="resend-code">
+                        <a href="#" class="resend-link" id="resendLink" onclick="resendCode()">
+                            Didn't receive a code? Resend
+                        </a>
+                    </div>
+
+                    <button type="submit" class="btn" id="verifyBtn">
+                        <span class="loading-spinner" id="verifySpinner"></span>
+                        Verify & Sign In
+                    </button>
+                </form>
+
+                <button type="button" class="btn btn-secondary" onclick="showMethodSelection()">
+                    Try Different Method
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Email Form -->
+    <div class="login-container change-form" id="changeEmailForm">
+        <button type="button" class="back-button" onclick="showLogin()">
+            ← Back to login
+        </button>
+
+        <div class="change-form-header">
+            <h2>Change Email Address</h2>
+            <p>Update your email address for account security</p>
+        </div>
+
+        <div class="current-info">
+            Current email: <strong id="currentEmail">user@example.com</strong>
+        </div>
+
+        <form id="emailChangeForm">
+            <div class="form-group">
+                <label for="currentPassword" class="form-label">Current Password</label>
+                <div class="password-group">
+                    <input type="password" id="currentPassword" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPassword')">👁</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="newEmail" class="form-label">New Email Address</label>
+                <input type="email" id="newEmail" name="newEmail" class="form-input" placeholder="Enter your new email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmEmail" class="form-label">Confirm New Email</label>
+                <input type="email" id="confirmEmail" name="confirmEmail" class="form-input" placeholder="Confirm your new email" required>
+            </div>
+
+            <button type="submit" class="btn" id="changeEmailBtn">
+                <span class="loading-spinner" id="emailSpinner"></span>
+                Update Email Address
+            </button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <p style="font-size: 12px; color: #6c727f;">
+                A verification email will be sent to your new address
+            </p>
+        </div>
+    </div>
+
+    <!-- Change Password Form -->
+    <div class="login-container change-form" id="changePasswordForm">
+        <button type="button" class="back-button" onclick="showLogin()">
+            ← Back to login
+        </button>
+
+        <div class="change-form-header">
+            <h2>Change Password</h2>
+            <p>Create a strong, unique password for your account</p>
+        </div>
+
+        <form id="passwordChangeForm">
+            <div class="form-group">
+                <label for="currentPasswordChange" class="form-label">Current Password</label>
+                <div class="password-group">
+                    <input type="password" id="currentPasswordChange" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPasswordChange')">👁</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="newPassword" class="form-label">New Password</label>
+                <div class="password-group">
+                    <input type="password" id="newPassword" name="newPassword" class="form-input" placeholder="Enter your new password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('newPassword')">👁</button>
+                </div>
+                <div class="strength-meter">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strengthFill"></div>
+                    </div>
+                    <div class="strength-text" id="strengthText">Password strength: Weak</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                <div class="password-group">
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Confirm your new password" required>
+                    <button type="button" class="password-toggle" onclick="togglePasswordField('confirmPassword')">👁</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: #6c727f; margin-bottom: 10px;">Password requirements:</div>
+                <div id="passwordRequirements" style="font-size: 11px; color: #6c727f;">
+                    <div class="requirement" id="lengthReq">• At least 8 characters</div>
+                    <div class="requirement" id="uppercaseReq">• One uppercase letter</div>
+                    <div class="requirement" id="lowercaseReq">• One lowercase letter</div>
+                    <div class="requirement" id="numberReq">• One number</div>
+                    <div class="requirement" id="specialReq">• One special character</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="changePasswordBtn">
+                <span class="loading-spinner" id="passwordSpinner"></span>
+                Update Password
+            </button>
+        </form>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <p style="font-size: 12px; color: #6c727f;">
+                You'll be signed out from all devices after changing your password
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let selectedMFAMethod = null;
+        let resendTimer = null;
+        let resendTimeout = 30;
+
+        // Password toggle functionality
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleBtn = document.querySelector('.password-toggle');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁';
+            }
+        }
+
+        // Show/hide different forms
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('mfaContainer').classList.remove('active');
+            document.getElementById('changeEmailForm').classList.remove('active');
+            document.getElementById('changePasswordForm').classList.remove('active');
+            hideSettingsMenu();
+            clearMessages();
+        }
+
+        function showChangeEmailForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('mfaContainer').classList.remove('active');
+            document.getElementById('changeEmailForm').classList.add('active');
+            document.getElementById('changePasswordForm').classList.remove('active');
+            hideSettingsMenu();
+            clearMessages();
+        }
+
+        function showChangePasswordForm() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('mfaContainer').classList.remove('active');
+            document.getElementById('changeEmailForm').classList.remove('active');
+            document.getElementById('changePasswordForm').classList.add('active');
+            hideSettingsMenu();
+            clearMessages();
+        }
+
+        // Settings menu functions
+        function toggleSettingsMenu() {
+            const menu = document.getElementById('settingsMenuContent');
+            menu.classList.toggle('show');
+        }
+
+        function hideSettingsMenu() {
+            const menu = document.getElementById('settingsMenuContent');
+            menu.classList.remove('show');
+        }
+
+        // Close settings menu when clicking outside
+        document.addEventListener('click', function(event) {
+            const settingsDropdown = document.querySelector('.settings-dropdown');
+            if (!settingsDropdown.contains(event.target)) {
+                hideSettingsMenu();
+            }
+        });
+
+        // Enhanced password toggle for multiple fields
+        function togglePasswordField(fieldId) {
+            const passwordInput = document.getElementById(fieldId);
+            const toggleBtn = passwordInput.nextElementSibling;
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁';
+            }
+        }
+
+        function showMFA() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('mfaContainer').classList.add('active');
+            showMethodSelection();
+        }
+
+        function showTestMFA() {
+            showMFA();
+        }
+
+        function showMethodSelection() {
+            document.getElementById('mfaMethodSelection').style.display = 'block';
+            document.getElementById('mfaCodeEntry').style.display = 'none';
+            selectedMFAMethod = null;
+            updateContinueButton();
+        }
+
+        function showCodeEntry() {
+            if (!selectedMFAMethod) return;
+            
+            document.getElementById('mfaMethodSelection').style.display = 'none';
+            document.getElementById('mfaCodeEntry').style.display = 'block';
+            
+            // Update title and description based on selected method
+            updateCodeEntryUI();
+            
+            // Clear code inputs
+            clearCodeInputs();
+            
+            // Focus first input
+            document.querySelector('.code-input').focus();
+            
+            // Start resend timer
+            startResendTimer();
+        }
+
+        // MFA method selection
+        function selectMFAMethod(method) {
+            // Remove previous selection
+            document.querySelectorAll('.mfa-method').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // Add selection to clicked method
+            document.querySelector(`[data-method="${method}"]`).classList.add('selected');
+            
+            selectedMFAMethod = method;
+            updateContinueButton();
+        }
+
+        function updateContinueButton() {
+            const continueBtn = document.getElementById('continueBtn');
+            continueBtn.disabled = !selectedMFAMethod;
+        }
+
+        function updateCodeEntryUI() {
+            const title = document.getElementById('codeEntryTitle');
+            const description = document.getElementById('codeEntryDescription');
+            
+            switch (selectedMFAMethod) {
+                case 'app':
+                    title.textContent = 'Enter Authenticator Code';
+                    description.textContent = 'Enter the 6-digit code from your authenticator app';
+                    break;
+                case 'sms':
+                    title.textContent = 'Enter SMS Code';
+                    description.textContent = 'Enter the 6-digit code sent to your phone ••• •••• 1234';
+                    break;
+                case 'email':
+                    title.textContent = 'Enter Email Code';
+                    description.textContent = 'Enter the 6-digit code sent to your email address';
+                    break;
+                case 'backup':
+                    title.textContent = 'Enter Backup Code';
+                    description.textContent = 'Enter one of your saved backup codes';
+                    break;
+            }
+        }
+
+        // Code input handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const codeInputs = document.querySelectorAll('.code-input');
+            
+            codeInputs.forEach((input, index) => {
+                input.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    
+                    // Only allow digits
+                    if (!/^\d*$/.test(value)) {
+                        e.target.value = '';
+                        return;
+                    }
+                    
+                    // Move to next input if current is filled
+                    if (value.length === 1 && index < codeInputs.length - 1) {
+                        codeInputs[index + 1].focus();
+                    }
+                    
+                    // Auto-submit when all inputs are filled
+                    if (index === codeInputs.length - 1 && value.length === 1) {
+                        const allFilled = Array.from(codeInputs).every(input => input.value.length === 1);
+                        if (allFilled) {
+                            document.getElementById('mfaCodeForm').dispatchEvent(new Event('submit'));
+                        }
+                    }
+                });
+                
+                input.addEventListener('keydown', function(e) {
+                    // Move to previous input on backspace
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                        codeInputs[index - 1].focus();
+                    }
+                });
+                
+                input.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    const paste = e.clipboardData.getData('text');
+                    const digits = paste.replace(/\D/g, '').slice(0, 6);
+                    
+                    digits.split('').forEach((digit, i) => {
+                        if (codeInputs[i]) {
+                            codeInputs[i].value = digit;
+                        }
+                    });
+                    
+                    // Focus last filled input or next empty
+                    const lastIndex = Math.min(digits.length - 1, codeInputs.length - 1);
+                    codeInputs[lastIndex].focus();
+                });
+            });
+        });
+
+        function clearCodeInputs() {
+            document.querySelectorAll('.code-input').forEach(input => {
+                input.value = '';
+            });
+        }
+
+        function getCodeValue() {
+            return Array.from(document.querySelectorAll('.code-input'))
+                .map(input => input.value)
+                .join('');
+        }
+
+        // Resend code functionality
+        function startResendTimer() {
+            const resendLink = document.getElementById('resendLink');
+            resendTimeout = 30;
+            
+            function updateTimer() {
+                if (resendTimeout > 0) {
+                    resendLink.textContent = `Resend code in ${resendTimeout}s`;
+                    resendLink.classList.add('disabled');
+                    resendTimeout--;
+                    resendTimer = setTimeout(updateTimer, 1000);
+                } else {
+                    resendLink.textContent = 'Didn\'t receive a code? Resend';
+                    resendLink.classList.remove('disabled');
+                }
+            }
+            
+            updateTimer();
+        }
+
+        function resendCode() {
+            const resendLink = document.getElementById('resendLink');
+            if (resendLink.classList.contains('disabled')) return;
+            
+            showSuccess('Verification code sent successfully!');
+            startResendTimer();
+        }
+
+        // Form submissions
+        // Password strength checking
+        function checkPasswordStrength(password) {
+            const checks = {
+                length: password.length >= 8,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                number: /\d/.test(password),
+                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+            };
+            
+            const passed = Object.values(checks).filter(Boolean).length;
+            let strength = 'weak';
+            
+            if (passed >= 5) strength = 'strong';
+            else if (passed >= 4) strength = 'good';
+            else if (passed >= 3) strength = 'fair';
+            
+            return { strength, checks };
+        }
+
+        function updatePasswordStrength() {
+            const password = document.getElementById('newPassword').value;
+            const strengthFill = document.getElementById('strengthFill');
+            const strengthText = document.getElementById('strengthText');
+            
+            if (!password) {
+                strengthFill.className = 'strength-fill';
+                strengthText.textContent = 'Password strength: Weak';
+                return;
+            }
+            
+            const { strength, checks } = checkPasswordStrength(password);
+            
+            strengthFill.className = `strength-fill ${strength}`;
+            strengthText.textContent = `Password strength: ${strength.charAt(0).toUpperCase() + strength.slice(1)}`;
+            
+            // Update requirements
+            document.getElementById('lengthReq').style.color = checks.length ? '#00cc88' : '#6c727f';
+            document.getElementById('uppercaseReq').style.color = checks.uppercase ? '#00cc88' : '#6c727f';
+            document.getElementById('lowercaseReq').style.color = checks.lowercase ? '#00cc88' : '#6c727f';
+            document.getElementById('numberReq').style.color = checks.number ? '#00cc88' : '#6c727f';
+            document.getElementById('specialReq').style.color = checks.special ? '#00cc88' : '#6c727f';
+        }
+
+        // Add password strength checking event listener
+        document.addEventListener('DOMContentLoaded', function() {
+            const newPasswordInput = document.getElementById('newPassword');
+            if (newPasswordInput) {
+                newPasswordInput.addEventListener('input', updatePasswordStrength);
+            }
+        });
+
+        // Change Email Form Handler
+        document.getElementById('emailChangeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newEmail = document.getElementById('newEmail').value;
+            const confirmEmail = document.getElementById('confirmEmail').value;
+            
+            if (!currentPassword || !newEmail || !confirmEmail) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            if (newEmail !== confirmEmail) {
+                showError('Email addresses do not match');
+                return;
+            }
+            
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newEmail)) {
+                showError('Please enter a valid email address');
+                return;
+            }
+            
+            // Show loading
+            const btn = document.getElementById('changeEmailBtn');
+            const spinner = document.getElementById('emailSpinner');
+            btn.disabled = true;
+            spinner.classList.add('show');
+            
+            // Simulate API call
+            setTimeout(() => {
+                btn.disabled = false;
+                spinner.classList.remove('show');
+                
+                // For demo purposes
+                showSuccess('Email change request sent! Please check your new email for verification.');
+                document.getElementById('currentEmail').textContent = newEmail;
+                setTimeout(() => showLogin(), 3000);
+            }, 2000);
+        });
+
+        // Change Password Form Handler
+        document.getElementById('passwordChangeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const currentPassword = document.getElementById('currentPasswordChange').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                showError('New passwords do not match');
+                return;
+            }
+            
+            if (currentPassword === newPassword) {
+                showError('New password must be different from current password');
+                return;
+            }
+            
+            const { strength, checks } = checkPasswordStrength(newPassword);
+            const passedChecks = Object.values(checks).filter(Boolean).length;
+            
+            if (passedChecks < 4) {
+                showError('Password does not meet security requirements');
+                return;
+            }
+            
+            // Show loading
+            const btn = document.getElementById('changePasswordBtn');
+            const spinner = document.getElementById('passwordSpinner');
+            btn.disabled = true;
+            spinner.classList.add('show');
+            
+            // Simulate API call
+            setTimeout(() => {
+                btn.disabled = false;
+                spinner.classList.remove('show');
+                
+                // For demo purposes
+                showSuccess('Password changed successfully! You will be signed out from all devices.');
+                setTimeout(() => showLogin(), 3000);
+            }, 2000);
+        });
+
+        document.getElementById('emailPasswordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+            
+            // Show loading
+            const loginBtn = document.getElementById('loginBtn');
+            const spinner = document.getElementById('loginSpinner');
+            loginBtn.disabled = true;
+            spinner.classList.add('show');
+            
+            // Simulate API call
+            setTimeout(() => {
+                loginBtn.disabled = false;
+                spinner.classList.remove('show');
+                
+                // For demo purposes, always require MFA
+                clearMessages();
+                showMFA();
+            }, 1500);
+        });
+
+        document.getElementById('mfaCodeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const code = getCodeValue();
+            
+            if (code.length !== 6) {
+                showError('Please enter the complete verification code');
+                return;
+            }
+            
+            // Show loading
+            const verifyBtn = document.getElementById('verifyBtn');
+            const spinner = document.getElementById('verifySpinner');
+            verifyBtn.disabled = true;
+            spinner.classList.add('show');
+            
+            // Simulate API call
+            setTimeout(() => {
+                verifyBtn.disabled = false;
+                spinner.classList.remove('show');
+                
+                // For demo purposes, always succeed
+                if (code === '123456') {
+                    showSuccess('Login successful! Redirecting...');
+                    setTimeout(() => {
+                        // Redirect to main app
+                        window.location.href = '/';
+                    }, 2000);
+                } else {
+                    showError('Invalid verification code. Please try again.');
+                    clearCodeInputs();
+                    document.querySelector('.code-input').focus();
+                }
+            }, 1500);
+        });
+
+        // Message handling
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.classList.add('show');
+            
+            setTimeout(() => {
+                successDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        function clearMessages() {
+            document.getElementById('errorMessage').classList.remove('show');
+            document.getElementById('successMessage').classList.remove('show');
+        }
+
+        // Clean up timers
+        window.addEventListener('beforeunload', function() {
+            if (resendTimer) {
+                clearTimeout(resendTimer);
+            }
+        });
+    </script>
+</body>
+</html>

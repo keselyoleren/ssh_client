@@ -8,3 +8,12 @@ psycopg2-binary
 SQLAlchemy
 alembic
 pydantic-settings
+bcrypt
+pyotp
+qrcode[pil]
+email-validator
+python-jose[cryptography]
+passlib[bcrypt]
+pytest
+pytest-asyncio
+httpx

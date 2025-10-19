@@ -1,0 +1,2400 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSH Client</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@4.18.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@4.18.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #1a1d29;
+            color: #e4e6eb;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .main-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 100%;
+            max-width: 100%;
+            background: #1a1d29;
+            overflow-y: auto;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+
+        .sidebar.hidden {
+            display: none;
+        }
+
+        .terminal-view {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            flex-direction: column;
+            background: #23273a;
+            z-index: 999;
+        }
+
+        .terminal-view.active {
+            display: flex;
+        }
+
+        .header {
+            background: #23273a;
+            padding: 15px 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .search-box {
+            flex: 1;
+            background: #2e3247;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #e4e6eb;
+            font-size: 14px;
+        }
+
+        .search-box::placeholder {
+            color: #6c727f;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: #3a3f5c;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: #e4e6eb;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #464c68;
+        }
+
+        .btn-primary {
+            background: #4a9eff;
+        }
+
+        .btn-primary:hover {
+            background: #3d8ee6;
+        }
+
+        .view-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .view-btn {
+            background: #3a3f5c;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: #6c727f;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .view-btn.active {
+            background: #4a9eff;
+            color: #fff;
+        }
+
+        .section-title {
+            color: #6c727f;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 30px 0 15px 5px;
+            font-weight: 600;
+        }
+
+        .groups-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .group-card {
+            background: #23273a;
+            padding: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .group-card:hover {
+            background: #2a2e44;
+            transform: translateY(-2px);
+        }
+
+        .group-icon {
+            width: 48px;
+            height: 48px;
+            background: #3a3f5c;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .group-info h3 {
+            font-size: 16px;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .group-info p {
+            font-size: 13px;
+            color: #6c727f;
+        }
+
+        .hosts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .hosts-container.list-view {
+            grid-template-columns: 1fr;
+        }
+
+        .host-card {
+            background: #2d3548;
+            padding: 14px 18px;
+            border-radius: 10px;
+            border: 2px solid #3d4558;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            position: relative;
+        }
+
+        .host-card:hover {
+            background: #343a4f;
+            border-color: #00d9a3;
+            box-shadow: 0 0 0 1px #00d9a3;
+        }
+
+        .host-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.9);
+            transition: all 0.2s;
+        }
+
+        .host-card:hover .host-actions {
+            opacity: 1;
+            pointer-events: all;
+            transform: scale(1);
+        }
+
+        .host-card:active {
+            transform: scale(0.99);
+        }
+
+        .host-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+
+        .host-icon.orange {
+            background: #ff6633;
+        }
+
+        .host-icon.yellow {
+            background: #ffbb33;
+        }
+
+        .host-icon.blue {
+            background: #3399ff;
+        }
+
+        .host-icon.purple {
+            background: #9966ff;
+        }
+
+        .host-icon.green {
+            background: #00cc88;
+        }
+
+        .host-icon.red {
+            background: #ff4466;
+        }
+
+        .host-info h4 {
+            font-size: 15px;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #ffffff;
+            letter-spacing: 0.2px;
+        }
+
+        .host-info p {
+            font-size: 12px;
+            color: #8892a6;
+            font-weight: 400;
+        }
+
+        /* Terminal Tab System */
+        .tab-bar {
+            display: flex;
+            background: #1a1d29;
+            border-bottom: 1px solid #2e3247;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: #2e3247;
+            border-right: 1px solid #2e3247;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+            color: #e4e6eb;
+            font-size: 13px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .back-btn:hover {
+            background: #3a3f5c;
+        }
+
+        .back-icon {
+            font-size: 16px;
+        }
+
+        .tab {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 20px;
+            background: #23273a;
+            border-right: 1px solid #2e3247;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.2s;
+            max-width: 250px;
+        }
+
+        .tab:hover {
+            background: #2a2e44;
+        }
+
+        .tab.active {
+            background: #23273a;
+            border-bottom: 2px solid #4a9eff;
+        }
+
+        .tab-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .tab-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 13px;
+        }
+
+        .tab-close {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: #6c727f;
+            cursor: pointer;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .tab-close:hover {
+            background: #3a3f5c;
+            color: #e4e6eb;
+        }
+
+        .terminal-container {
+            flex: 1;
+            padding: 0;
+            overflow: hidden;
+            height: calc(100vh - 50px);
+        }
+
+        .terminal-wrapper {
+            display: none;
+            height: 100%;
+        }
+
+        .terminal-wrapper.active {
+            display: block;
+        }
+
+        .terminal-content {
+            height: 100%;
+            width: 100%;
+            background: #1a1d29;
+            border-radius: 0;
+            overflow: hidden;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #23273a;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            font-size: 20px;
+            margin-bottom: 25px;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #9ca3af;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            background: #2e3247;
+            border: 1px solid #3a3f5c;
+            padding: 12px;
+            border-radius: 8px;
+            color: #e4e6eb;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #4a9eff;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #3a3f5c;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #e4e6eb;
+            font-size: 18px;
+        }
+
+        .close-btn:hover {
+            background: #464c68;
+        }
+
+        /* Settings Modal Styles */
+        .settings-modal .modal-content {
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .settings-tabs {
+            display: flex;
+            border-bottom: 1px solid #3d4558;
+            margin-bottom: 25px;
+        }
+
+        .settings-tab {
+            background: none;
+            border: none;
+            padding: 12px 20px;
+            color: #6c727f;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .settings-tab.active {
+            color: #4a9eff;
+            border-bottom-color: #4a9eff;
+        }
+
+        .settings-tab:hover {
+            color: #e4e6eb;
+        }
+
+        .settings-content {
+            display: none;
+        }
+
+        .settings-content.active {
+            display: block;
+        }
+
+        .settings-section {
+            margin-bottom: 30px;
+        }
+
+        .settings-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #e4e6eb;
+        }
+
+        .settings-section-description {
+            font-size: 13px;
+            color: #6c727f;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .settings-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #2e3247;
+        }
+
+        .settings-option:last-child {
+            border-bottom: none;
+        }
+
+        .settings-option-info h4 {
+            font-size: 14px;
+            font-weight: 500;
+            color: #e4e6eb;
+            margin-bottom: 4px;
+        }
+
+        .settings-option-info p {
+            font-size: 12px;
+            color: #6c727f;
+            line-height: 1.4;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #3a3f5c;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #4a9eff;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+
+        .mfa-methods-list {
+            margin-top: 15px;
+        }
+
+        .mfa-method-item {
+            background: #2e3247;
+            border: 1px solid #3d4558;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mfa-method-item.enabled {
+            border-color: #4a9eff;
+            background: #343a4f;
+        }
+
+        .mfa-method-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+
+        .mfa-method-details h5 {
+            font-size: 13px;
+            font-weight: 500;
+            color: #e4e6eb;
+            margin-bottom: 2px;
+        }
+
+        .mfa-method-details p {
+            font-size: 11px;
+            color: #6c727f;
+        }
+
+        .mfa-method-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 11px;
+            border-radius: 5px;
+        }
+
+        .btn-danger {
+            background: #d84f76;
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #c23e6a;
+        }
+
+        .backup-codes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .backup-code {
+            background: #2e3247;
+            border: 1px solid #3d4558;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #e4e6eb;
+        }
+
+        .backup-code.used {
+            background: #3a3f5c;
+            color: #6c727f;
+            text-decoration: line-through;
+        }
+
+        /* Change Email/Password Modal Styles */
+        .change-modal .modal-content {
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .current-info {
+            background: #2e3247;
+            border: 1px solid #3d4558;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .current-info strong {
+            color: #4a9eff;
+        }
+
+        .strength-meter {
+            margin-top: 8px;
+        }
+
+        .strength-bar {
+            height: 4px;
+            background: #3d4558;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .strength-fill {
+            height: 100%;
+            width: 0%;
+            transition: all 0.3s;
+            border-radius: 2px;
+        }
+
+        .strength-fill.weak {
+            background: #d84f76;
+            width: 25%;
+        }
+
+        .strength-fill.fair {
+            background: #ffbb33;
+            width: 50%;
+        }
+
+        .strength-fill.good {
+            background: #4a9eff;
+            width: 75%;
+        }
+
+        .strength-fill.strong {
+            background: #00cc88;
+            width: 100%;
+        }
+
+        .strength-text {
+            font-size: 12px;
+            margin-top: 4px;
+            color: #6c727f;
+        }
+
+        .password-requirements {
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+
+        .requirements-title {
+            font-size: 12px;
+            color: #6c727f;
+            margin-bottom: 10px;
+        }
+
+        .requirement {
+            font-size: 11px;
+            color: #6c727f;
+            margin-bottom: 4px;
+            transition: color 0.3s;
+        }
+
+        .requirement.met {
+            color: #00cc88;
+        }
+
+        .form-note {
+            margin-top: 15px;
+            text-align: center;
+            font-size: 12px;
+            color: #6c727f;
+            line-height: 1.4;
+        }
+
+        /* Theme Selector */
+        .theme-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: #23273a;
+            box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+            transition: right 0.3s;
+            z-index: 1001;
+            overflow-y: auto;
+        }
+
+        .theme-panel.active {
+            right: 0;
+        }
+
+        .theme-panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #2e3247;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .theme-panel-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .theme-section {
+            padding: 20px;
+        }
+
+        .theme-section-title {
+            font-size: 12px;
+            color: #6c727f;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .theme-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .theme-item {
+            background: #2e3247;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .theme-item:hover {
+            background: #3a3f5c;
+        }
+
+        .theme-item.active {
+            border-color: #4a9eff;
+            background: #2a3a4f;
+        }
+
+        .theme-preview {
+            width: 60px;
+            height: 40px;
+            border-radius: 6px;
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .theme-preview-lines {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            right: 8px;
+        }
+
+        .theme-preview-line {
+            height: 2px;
+            border-radius: 1px;
+            margin-bottom: 4px;
+        }
+
+        .theme-info {
+            flex: 1;
+        }
+
+        .theme-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .theme-stats {
+            font-size: 11px;
+            color: #6c727f;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .settings-icon {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            background: #3a3f5c;
+            border: none;
+            border-radius: 10px;
+            color: #e4e6eb;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .settings-icon.visible {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .settings-icon:hover {
+            background: #464c68;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="header">
+                <input type="text" class="search-box" id="search-box" placeholder="Find a host or ssh user@hostname...">
+                <div class="view-controls">
+                    <button class="view-btn active" id="grid-view" title="Grid View">⊞</button>
+                    <button class="view-btn" id="list-view" title="List View">☰</button>
+                </div>
+                <div class="header-buttons">
+                    <button class="btn" onclick="openSettingsModal()" title="Settings">⚙</button>
+                    <button class="btn btn-primary" onclick="openCreateModal()">+ NEW HOST</button>
+                </div>
+            </div>
+
+            <div class="section-title">Hosts</div>
+            <div class="hosts-container" id="client-list"></div>
+        </div>
+
+        <!-- Terminal View with Tabs -->
+        <div class="terminal-view" id="terminal-view">
+            <div class="tab-bar" id="tab-bar">
+                <div class="back-btn" onclick="backToList()">
+                    <span class="back-icon">←</span>
+                    <span>Hosts</span>
+                </div>
+            </div>
+            <div class="terminal-container" id="terminal-container"></div>
+        </div>
+    </div>
+
+    <!-- Settings Icon -->
+    <button class="settings-icon" onclick="toggleThemePanel()">⚙</button>
+
+    <!-- Theme Panel -->
+    <div class="theme-panel" id="theme-panel">
+        <div class="theme-panel-header">
+            <div class="theme-panel-title">Terminal Settings</div>
+            <button class="close-btn" onclick="toggleThemePanel()">×</button>
+        </div>
+        <div class="theme-section">
+            <div class="theme-section-title">Themes</div>
+            <div class="theme-grid" id="theme-grid"></div>
+        </div>
+    </div>
+
+    <!-- Create Client Modal -->
+    <div class="modal" id="create-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeCreateModal()">×</button>
+            <div class="modal-header" id="modal-header-title">Create SSH Client</div>
+            <form id="create-client-form">
+                <input type="hidden" id="client-id" name="client_id">
+                <div class="form-group">
+                    <label for="label">Label</label>
+                    <input type="text" id="label" name="label">
+                </div>
+                <div class="form-group">
+                    <label for="host">Host</label>
+                    <input type="text" id="host" name="host" required>
+                </div>
+                <div class="form-group">
+                    <label for="port">Port</label>
+                    <input type="number" id="port" name="port" value="22" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password">
+                </div>
+                <div class="form-group">
+                    <label for="private_key">Private Key</label>
+                    <textarea id="private_key" name="private_key"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeCreateModal()">Cancel</button>
+                    <button type="button" class="btn" onclick="deleteCurrentClient()" id="delete-btn" style="background: #d84f76; display: none;">Delete</button>
+                    <button type="submit" class="btn btn-primary" id="submit-btn">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal settings-modal" id="settings-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeSettingsModal()">×</button>
+            <div class="modal-header">Settings</div>
+            
+            <div class="settings-tabs">
+                <button class="settings-tab active" onclick="switchSettingsTab('security')">Security</button>
+                <button class="settings-tab" onclick="switchSettingsTab('terminal')">Terminal</button>
+                <button class="settings-tab" onclick="switchSettingsTab('general')">General</button>
+            </div>
+
+            <!-- Security Settings -->
+            <div class="settings-content active" id="security-settings">
+                <div class="settings-section">
+                    <div class="settings-section-title">Multi-Factor Authentication</div>
+                    <div class="settings-section-description">
+                        Add an extra layer of security to your account by enabling two-factor authentication.
+                    </div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Enable MFA</h4>
+                            <p>Require a second form of authentication when signing in</p>
+                        </div>
+                        <div class="toggle-switch" id="mfa-toggle" onclick="toggleMFA()">
+                        </div>
+                    </div>
+
+                    <div id="mfa-methods-section" style="display: none;">
+                        <div class="mfa-methods-list">
+                            <div class="mfa-method-item" id="authenticator-method">
+                                <div style="display: flex; align-items: center;">
+                                    <span class="mfa-method-icon">📱</span>
+                                    <div class="mfa-method-details">
+                                        <h5>Authenticator App</h5>
+                                        <p>Use Google Authenticator, Authy, or similar apps</p>
+                                    </div>
+                                </div>
+                                <div class="mfa-method-actions">
+                                    <button class="btn btn-small btn-primary" onclick="setupAuthenticator()">Setup</button>
+                                </div>
+                            </div>
+
+                            <div class="mfa-method-item" id="sms-method">
+                                <div style="display: flex; align-items: center;">
+                                    <span class="mfa-method-icon">💬</span>
+                                    <div class="mfa-method-details">
+                                        <h5>SMS Text Message</h5>
+                                        <p>Receive codes via text message</p>
+                                    </div>
+                                </div>
+                                <div class="mfa-method-actions">
+                                    <button class="btn btn-small btn-primary" onclick="setupSMS()">Setup</button>
+                                </div>
+                            </div>
+
+                            <div class="mfa-method-item" id="email-method">
+                                <div style="display: flex; align-items: center;">
+                                    <span class="mfa-method-icon">📧</span>
+                                    <div class="mfa-method-details">
+                                        <h5>Email Verification</h5>
+                                        <p>Receive codes via email</p>
+                                    </div>
+                                </div>
+                                <div class="mfa-method-actions">
+                                    <button class="btn btn-small btn-primary" onclick="setupEmail()">Setup</button>
+                                </div>
+                            </div>
+
+                            <div class="mfa-method-item" id="backup-codes-method">
+                                <div style="display: flex; align-items: center;">
+                                    <span class="mfa-method-icon">🔑</span>
+                                    <div class="mfa-method-details">
+                                        <h5>Backup Codes</h5>
+                                        <p>One-time use codes for account recovery</p>
+                                    </div>
+                                </div>
+                                <div class="mfa-method-actions">
+                                    <button class="btn btn-small" onclick="generateBackupCodes()">Generate</button>
+                                    <button class="btn btn-small" onclick="viewBackupCodes()" style="display: none;" id="view-backup-codes">View</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="backup-codes-display" style="display: none; margin-top: 20px;">
+                            <div class="settings-section-title">Your Backup Codes</div>
+                            <div class="settings-section-description">
+                                Save these codes in a safe place. Each code can only be used once.
+                            </div>
+                            <div class="backup-codes-grid" id="backup-codes-grid">
+                                <!-- Backup codes will be generated here -->
+                            </div>
+                            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                                <button class="btn btn-small" onclick="downloadBackupCodes()">Download</button>
+                                <button class="btn btn-small" onclick="printBackupCodes()">Print</button>
+                                <button class="btn btn-small" onclick="regenerateBackupCodes()">Regenerate</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Account Management</div>
+                    <div class="settings-section-description">
+                        Manage your account credentials and personal information.
+                    </div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Change Email</h4>
+                            <p>Update your email address for account security</p>
+                        </div>
+                        <button class="btn btn-small" onclick="openChangeEmailModal()">Change</button>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Change Password</h4>
+                            <p>Update your password to keep your account secure</p>
+                        </div>
+                        <button class="btn btn-small" onclick="openChangePasswordModal()">Change</button>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Session Management</div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Auto Logout</h4>
+                            <p>Automatically sign out after 30 minutes of inactivity</p>
+                        </div>
+                        <div class="toggle-switch active" id="auto-logout-toggle" onclick="toggleAutoLogout()">
+                        </div>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Remember Device</h4>
+                            <p>Skip MFA on this device for 30 days</p>
+                        </div>
+                        <div class="toggle-switch" id="remember-device-toggle" onclick="toggleRememberDevice()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Settings -->
+            <div class="settings-content" id="terminal-settings">
+                <div class="settings-section">
+                    <div class="settings-section-title">Terminal Appearance</div>
+                    <div class="settings-section-description">
+                        Customize the look and feel of your terminal sessions.
+                    </div>
+                    
+                    <div class="theme-section">
+                        <div class="theme-section-title">Themes</div>
+                        <div class="theme-grid" id="settings-theme-grid"></div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Terminal Behavior</div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Auto Reconnect</h4>
+                            <p>Automatically reconnect when connection is lost</p>
+                        </div>
+                        <div class="toggle-switch active" id="auto-reconnect-toggle" onclick="toggleAutoReconnect()">
+                        </div>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Bell Sound</h4>
+                            <p>Play a sound when the terminal bell is triggered</p>
+                        </div>
+                        <div class="toggle-switch" id="bell-sound-toggle" onclick="toggleBellSound()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- General Settings -->
+            <div class="settings-content" id="general-settings">
+                <div class="settings-section">
+                    <div class="settings-section-title">Application Preferences</div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Dark Mode</h4>
+                            <p>Use dark theme for the application interface</p>
+                        </div>
+                        <div class="toggle-switch active" id="dark-mode-toggle" onclick="toggleDarkMode()">
+                        </div>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Notifications</h4>
+                            <p>Show browser notifications for connection events</p>
+                        </div>
+                        <div class="toggle-switch active" id="notifications-toggle" onclick="toggleNotifications()">
+                        </div>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Auto Save</h4>
+                            <p>Automatically save host configurations</p>
+                        </div>
+                        <div class="toggle-switch active" id="auto-save-toggle" onclick="toggleAutoSave()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-section-title">Data & Storage</div>
+                    
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Clear Session Data</h4>
+                            <p>Remove all saved session data and preferences</p>
+                        </div>
+                        <button class="btn btn-danger btn-small" onclick="clearSessionData()">Clear Data</button>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Export Settings</h4>
+                            <p>Download your settings and host configurations</p>
+                        </div>
+                        <button class="btn btn-small" onclick="exportSettings()">Export</button>
+                    </div>
+
+                    <div class="settings-option">
+                        <div class="settings-option-info">
+                            <h4>Import Settings</h4>
+                            <p>Restore settings from a previously exported file</p>
+                        </div>
+                        <button class="btn btn-small" onclick="importSettings()">Import</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeSettingsModal()">Close</button>
+                <button type="button" class="btn btn-primary" onclick="saveSettings()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Email Modal -->
+    <div class="modal change-modal" id="change-email-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeChangeEmailModal()">×</button>
+            <div class="modal-header">Change Email Address</div>
+            
+            <div class="current-info">
+                Current email: <strong id="currentEmailDisplay">user@example.com</strong>
+            </div>
+
+            <form id="change-email-form">
+                <div class="form-group">
+                    <label for="current-password-email">Current Password</label>
+                    <input type="password" id="current-password-email" name="currentPassword" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="new-email">New Email Address</label>
+                    <input type="email" id="new-email" name="newEmail" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm-email">Confirm New Email</label>
+                    <input type="email" id="confirm-email" name="confirmEmail" required>
+                </div>
+
+                <div class="form-note">
+                    A verification email will be sent to your new address to confirm the change.
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeChangeEmailModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Email</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal change-modal" id="change-password-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeChangePasswordModal()">×</button>
+            <div class="modal-header">Change Password</div>
+
+            <form id="change-password-form">
+                <div class="form-group">
+                    <label for="current-password-change">Current Password</label>
+                    <input type="password" id="current-password-change" name="currentPassword" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="new-password-change">New Password</label>
+                    <input type="password" id="new-password-change" name="newPassword" required>
+                    <div class="strength-meter">
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="password-strength-fill"></div>
+                        </div>
+                        <div class="strength-text" id="password-strength-text">Password strength: Weak</div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirm-password-change">Confirm New Password</label>
+                    <input type="password" id="confirm-password-change" name="confirmPassword" required>
+                </div>
+
+                <div class="password-requirements">
+                    <div class="requirements-title">Password requirements:</div>
+                    <div class="requirement" id="length-req">• At least 8 characters</div>
+                    <div class="requirement" id="uppercase-req">• One uppercase letter</div>
+                    <div class="requirement" id="lowercase-req">• One lowercase letter</div>
+                    <div class="requirement" id="number-req">• One number</div>
+                    <div class="requirement" id="special-req">• One special character</div>
+                </div>
+
+                <div class="form-note">
+                    You'll be signed out from all devices after changing your password for security.
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeChangePasswordModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const createClientForm = document.getElementById('create-client-form');
+        const clientList = document.getElementById('client-list');
+        const terminalContainer = document.getElementById('terminal-container');
+        const terminalView = document.getElementById('terminal-view');
+        const sidebar = document.getElementById('sidebar');
+        const tabBar = document.getElementById('tab-bar');
+        const createModal = document.getElementById('create-modal');
+        const searchBox = document.getElementById('search-box');
+        const gridViewBtn = document.getElementById('grid-view');
+        const listViewBtn = document.getElementById('list-view');
+        const themePanel = document.getElementById('theme-panel');
+        const themeGrid = document.getElementById('theme-grid');
+        const settingsIcon = document.querySelector('.settings-icon');
+        const modalHeaderTitle = document.getElementById('modal-header-title');
+        const submitBtn = document.getElementById('submit-btn');
+        const clientIdInput = document.getElementById('client-id');
+        const deleteBtn = document.getElementById('delete-btn');
+        const settingsModal = document.getElementById('settings-modal');
+
+        const iconColors = ['blue'];
+        const icons = ['🖥️'];
+        
+        let terminals = {};
+        let activeTabId = null;
+        let clients = [];
+        let currentTheme = 'hacker-blue';
+        let editingClientId = null;
+        let settingsData = {
+            mfa: {
+                enabled: false,
+                methods: {
+                    authenticator: false,
+                    sms: false,
+                    email: false,
+                    backupCodes: false
+                },
+                backupCodes: []
+            },
+            session: {
+                autoLogout: true,
+                rememberDevice: false
+            },
+            terminal: {
+                autoReconnect: true,
+                bellSound: false
+            },
+            general: {
+                darkMode: true,
+                notifications: true,
+                autoSave: true
+            }
+        };
+
+        // Terminal Themes
+        const themes = {
+            'flexoki-dark': {
+                name: 'Flexoki Dark',
+                downloads: 'new',
+                background: '#100f0f',
+                foreground: '#cecdc3',
+                cursor: '#d0a215',
+                colors: ['#878580', '#d14d41', '#879a39', '#d0a215', '#4385be', '#ce5d97', '#3aa99f', '#cecdc3']
+            },
+            'flexoki-light': {
+                name: 'Flexoki Light',
+                downloads: 'new',
+                background: '#fffcf0',
+                foreground: '#100f0f',
+                cursor: '#d0a215',
+                colors: ['#6f6e69', '#af3029', '#66800b', '#ad8301', '#205ea6', '#a02f6f', '#24837b', '#cecdc3']
+            },
+            'kanagawa-wave': {
+                name: 'Kanagawa Wave',
+                downloads: 'new',
+                background: '#1f1f28',
+                foreground: '#dcd7ba',
+                cursor: '#c8c093',
+                colors: ['#090618', '#c34043', '#76946a', '#c0a36e', '#7e9cd8', '#957fb8', '#6a9589', '#c8c093']
+            },
+            'kanagawa-dragon': {
+                name: 'Kanagawa Dragon',
+                downloads: 'new',
+                background: '#181616',
+                foreground: '#c5c9c5',
+                cursor: '#c8c093',
+                colors: ['#0d0c0c', '#c4746e', '#8a9a7b', '#c4b28a', '#8ba4b0', '#a292a3', '#8ea4a2', '#c8c093']
+            },
+            'kanagawa-lotus': {
+                name: 'Kanagawa Lotus',
+                downloads: 'new',
+                background: '#f2ecbc',
+                foreground: '#545464',
+                cursor: '#43436c',
+                colors: ['#d5cea3', '#c84053', '#6f894e', '#77713f', '#4d699b', '#b35b79', '#597b75', '#545464']
+            },
+            'hacker-blue': {
+                name: 'Hacker Blue',
+                downloads: 'new',
+                background: '#0a1628',
+                foreground: '#9cc4ff',
+                cursor: '#5fd7ff',
+                colors: ['#1b3356', '#d84f76', '#69c39c', '#e7da6f', '#2987db', '#6f77d5', '#4fc9db', '#9cc4ff']
+            },
+            'hacker-green': {
+                name: 'Hacker Green',
+                downloads: 'new',
+                background: '#0d1a0d',
+                foreground: '#6fff6f',
+                cursor: '#8fff8f',
+                colors: ['#1a3d1a', '#ff3939', '#6fff6f', '#e7e76f', '#4fa3ff', '#bf6fff', '#4fc9db', '#6fff6f']
+            },
+            'hacker-red': {
+                name: 'Hacker Red',
+                downloads: 'new',
+                background: '#1a0d0d',
+                foreground: '#ff6f6f',
+                cursor: '#ff8f8f',
+                colors: ['#3d1a1a', '#ff3939', '#6fff6f', '#e7e76f', '#4fa3ff', '#ff6fbf', '#4fc9db', '#ff6f6f']
+            },
+            'everforest-dark': {
+                name: 'Everforest Dark',
+                downloads: 'new',
+                background: '#2b3339',
+                foreground: '#d3c6aa',
+                cursor: '#d3c6aa',
+                colors: ['#4b565c', '#e67e80', '#a7c080', '#dbbc7f', '#7fbbb3', '#d699b6', '#83c092', '#d3c6aa']
+            },
+            'everforest-light': {
+                name: 'Everforest Light',
+                downloads: 'new',
+                background: '#fdf6e3',
+                foreground: '#5c6a72',
+                cursor: '#5c6a72',
+                colors: ['#5c6a72', '#f85552', '#8da101', '#dfa000', '#3a94c5', '#df69ba', '#35a77c', '#dfddc8']
+            },
+            'night-owl': {
+                name: 'Night Owl',
+                downloads: 'new',
+                background: '#011627',
+                foreground: '#d6deeb',
+                cursor: '#80a4c2',
+                colors: ['#011627', '#ef5350', '#c792ea', '#addb67', '#82aaff', '#c792ea', '#7fdbca', '#ffffff']
+            },
+            'light-owl': {
+                name: 'Light Owl',
+                downloads: 'new',
+                background: '#f0f0f0',
+                foreground: '#403f53',
+                cursor: '#403f53',
+                colors: ['#011627', '#de3d3b', '#2aa298', '#daaa01', '#4876d6', '#403f53', '#08916a', '#403f53']
+            },
+            'aura': {
+                name: 'Aura',
+                downloads: 'new',
+                background: '#15141b',
+                foreground: '#edecee',
+                cursor: '#a277ff',
+                colors: ['#110f18', '#ff6767', '#61ffca', '#ffca85', '#a277ff', '#a277ff', '#61ffca', '#edecee']
+            },
+            'rose-pine': {
+                name: 'Rosé Pine',
+                downloads: 'new',
+                background: '#191724',
+                foreground: '#e0def4',
+                cursor: '#524f67',
+                colors: ['#26233a', '#eb6f92', '#9ccfd8', '#f6c177', '#31748f', '#c4a7e7', '#ebbcba', '#e0def4']
+            }
+        };
+
+        function toggleThemePanel() {
+            themePanel.classList.toggle('active');
+        }
+
+        function renderThemes() {
+            themeGrid.innerHTML = '';
+            Object.keys(themes).forEach(themeId => {
+                const theme = themes[themeId];
+                const item = document.createElement('div');
+                item.className = `theme-item ${themeId === currentTheme ? 'active' : ''}`;
+                item.onclick = () => applyTheme(themeId);
+                
+                const previewLines = theme.colors.slice(0, 3).map((color, i) => 
+                    `<div class="theme-preview-line" style="background: ${color}; width: ${90 - i * 15}%;"></div>`
+                ).join('');
+                
+                item.innerHTML = `
+                    <div class="theme-preview" style="background: ${theme.background};">
+                        <div class="theme-preview-lines">${previewLines}</div>
+                    </div>
+                    <div class="theme-info">
+                        <div class="theme-name">${theme.name}</div>
+                        <div class="theme-stats">👥 ${theme.downloads}</div>
+                    </div>
+                `;
+                
+                themeGrid.appendChild(item);
+            });
+        }
+
+        function applyTheme(themeId) {
+            currentTheme = themeId;
+            renderThemes();
+            
+            // Apply theme to all active terminals
+            Object.keys(terminals).forEach(tabId => {
+                if (terminals[tabId] && terminals[tabId].term) {
+                    const theme = themes[themeId];
+                    terminals[tabId].term.options.theme = {
+                        background: theme.background,
+                        foreground: theme.foreground,
+                        cursor: theme.cursor,
+                        selection: theme.cursor + '40',
+                        black: theme.colors[0],
+                        red: theme.colors[1],
+                        green: theme.colors[2],
+                        yellow: theme.colors[3],
+                        blue: theme.colors[4],
+                        magenta: theme.colors[5],
+                        cyan: theme.colors[6],
+                        white: theme.colors[7]
+                    };
+                }
+            });
+        }
+
+        // View Toggle
+        gridViewBtn.addEventListener('click', () => {
+            clientList.classList.remove('list-view');
+            gridViewBtn.classList.add('active');
+            listViewBtn.classList.remove('active');
+        });
+
+        listViewBtn.addEventListener('click', () => {
+            clientList.classList.add('list-view');
+            listViewBtn.classList.add('active');
+            gridViewBtn.classList.remove('active');
+        });
+
+        // Search functionality
+        searchBox.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const hostCards = clientList.querySelectorAll('.host-card');
+            
+            hostCards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        function openCreateModal() {
+            editingClientId = null;
+            modalHeaderTitle.textContent = 'Create SSH Client';
+            submitBtn.textContent = 'Create';
+            deleteBtn.style.display = 'none';
+            createClientForm.reset();
+            clientIdInput.value = '';
+            createModal.classList.add('active');
+        }
+
+        function openEditModal(client) {
+            editingClientId = client.id;
+            modalHeaderTitle.textContent = 'Edit SSH Client';
+            submitBtn.textContent = 'Update';
+            deleteBtn.style.display = 'block';
+            
+            document.getElementById('label').value = client.label;
+            document.getElementById('host').value = client.host;
+            document.getElementById('port').value = client.port;
+            document.getElementById('username').value = client.username;
+            document.getElementById('password').value = client.password || '';
+            document.getElementById('private_key').value = client.private_key || '';
+            clientIdInput.value = client.id;
+            
+            createModal.classList.add('active');
+        }
+
+        function closeCreateModal() {
+            createModal.classList.remove('active');
+            createClientForm.reset();
+            editingClientId = null;
+        }
+
+        // Settings Modal Functions
+        function openSettingsModal() {
+            settingsModal.classList.add('active');
+            // Clone themes to settings modal
+            document.getElementById('settings-theme-grid').innerHTML = document.getElementById('theme-grid').innerHTML;
+        }
+
+        function closeSettingsModal() {
+            settingsModal.classList.remove('active');
+        }
+
+        function switchSettingsTab(tabName) {
+            // Remove active class from all tabs and contents
+            document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.settings-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to clicked tab and corresponding content
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-settings').classList.add('active');
+        }
+
+        // MFA Functions
+        function toggleMFA() {
+            const toggle = document.getElementById('mfa-toggle');
+            const methodsSection = document.getElementById('mfa-methods-section');
+            
+            settingsData.mfa.enabled = !settingsData.mfa.enabled;
+            toggle.classList.toggle('active');
+            
+            if (settingsData.mfa.enabled) {
+                methodsSection.style.display = 'block';
+            } else {
+                methodsSection.style.display = 'none';
+                // Reset all MFA methods
+                settingsData.mfa.methods = {
+                    authenticator: false,
+                    sms: false,
+                    email: false,
+                    backupCodes: false
+                };
+                updateMFAMethodsUI();
+            }
+        }
+
+        function setupAuthenticator() {
+            // Simulate setup process
+            alert('Authenticator app setup would be implemented here.\n\nQR Code generation and secret key management.');
+            settingsData.mfa.methods.authenticator = true;
+            updateMFAMethodsUI();
+        }
+
+        function setupSMS() {
+            const phone = prompt('Enter your phone number:');
+            if (phone) {
+                alert(`SMS verification would be sent to ${phone}`);
+                settingsData.mfa.methods.sms = true;
+                updateMFAMethodsUI();
+            }
+        }
+
+        function setupEmail() {
+            alert('Email verification method has been enabled.');
+            settingsData.mfa.methods.email = true;
+            updateMFAMethodsUI();
+        }
+
+        function generateBackupCodes() {
+            const codes = [];
+            for (let i = 0; i < 10; i++) {
+                codes.push(Math.random().toString(36).substr(2, 8).toUpperCase());
+            }
+            settingsData.mfa.backupCodes = codes;
+            settingsData.mfa.methods.backupCodes = true;
+            displayBackupCodes();
+            updateMFAMethodsUI();
+        }
+
+        function viewBackupCodes() {
+            displayBackupCodes();
+        }
+
+        function displayBackupCodes() {
+            const display = document.getElementById('backup-codes-display');
+            const grid = document.getElementById('backup-codes-grid');
+            
+            grid.innerHTML = '';
+            settingsData.mfa.backupCodes.forEach((code, index) => {
+                const codeDiv = document.createElement('div');
+                codeDiv.className = 'backup-code';
+                codeDiv.textContent = code;
+                grid.appendChild(codeDiv);
+            });
+            
+            display.style.display = 'block';
+        }
+
+        function downloadBackupCodes() {
+            const codes = settingsData.mfa.backupCodes.join('\n');
+            const blob = new Blob([codes], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'backup-codes.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function printBackupCodes() {
+            const codes = settingsData.mfa.backupCodes.map((code, i) => `${i + 1}. ${code}`).join('\n');
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head><title>Backup Codes</title></head>
+                <body style="font-family: monospace; padding: 20px;">
+                    <h2>SSH Client - Backup Codes</h2>
+                    <p>Keep these codes in a safe place. Each can only be used once.</p>
+                    <pre>${codes}</pre>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        }
+
+        function regenerateBackupCodes() {
+            if (confirm('This will invalidate your existing backup codes. Continue?')) {
+                generateBackupCodes();
+            }
+        }
+
+        function updateMFAMethodsUI() {
+            const methods = ['authenticator', 'sms', 'email', 'backup-codes'];
+            methods.forEach(method => {
+                const element = document.getElementById(method + '-method');
+                const isEnabled = settingsData.mfa.methods[method.replace('-', '')] || 
+                                  (method === 'backup-codes' && settingsData.mfa.methods.backupCodes);
+                
+                if (isEnabled) {
+                    element.classList.add('enabled');
+                    const button = element.querySelector('.btn-primary');
+                    if (button) {
+                        button.textContent = 'Configured';
+                        button.classList.remove('btn-primary');
+                    }
+                }
+            });
+
+            // Show/hide view backup codes button
+            if (settingsData.mfa.methods.backupCodes) {
+                document.getElementById('view-backup-codes').style.display = 'inline-block';
+            }
+        }
+
+        // Other Settings Functions
+        function toggleAutoLogout() {
+            const toggle = document.getElementById('auto-logout-toggle');
+            settingsData.session.autoLogout = !settingsData.session.autoLogout;
+            toggle.classList.toggle('active');
+        }
+
+        function toggleRememberDevice() {
+            const toggle = document.getElementById('remember-device-toggle');
+            settingsData.session.rememberDevice = !settingsData.session.rememberDevice;
+            toggle.classList.toggle('active');
+        }
+
+        function toggleAutoReconnect() {
+            const toggle = document.getElementById('auto-reconnect-toggle');
+            settingsData.terminal.autoReconnect = !settingsData.terminal.autoReconnect;
+            toggle.classList.toggle('active');
+        }
+
+        function toggleBellSound() {
+            const toggle = document.getElementById('bell-sound-toggle');
+            settingsData.terminal.bellSound = !settingsData.terminal.bellSound;
+            toggle.classList.toggle('active');
+        }
+
+        function toggleDarkMode() {
+            const toggle = document.getElementById('dark-mode-toggle');
+            settingsData.general.darkMode = !settingsData.general.darkMode;
+            toggle.classList.toggle('active');
+            // Could implement actual theme switching here
+        }
+
+        function toggleNotifications() {
+            const toggle = document.getElementById('notifications-toggle');
+            settingsData.general.notifications = !settingsData.general.notifications;
+            toggle.classList.toggle('active');
+        }
+
+        function toggleAutoSave() {
+            const toggle = document.getElementById('auto-save-toggle');
+            settingsData.general.autoSave = !settingsData.general.autoSave;
+            toggle.classList.toggle('active');
+        }
+
+        function clearSessionData() {
+            if (confirm('This will clear all session data and settings. Continue?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                alert('Session data cleared. Please refresh the page.');
+            }
+        }
+
+        function exportSettings() {
+            const data = {
+                settings: settingsData,
+                theme: currentTheme,
+                clients: clients.map(c => ({ ...c, password: '', private_key: '' })) // Don't export sensitive data
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ssh-client-settings.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            if (data.settings) {
+                                settingsData = { ...settingsData, ...data.settings };
+                                if (data.theme) {
+                                    applyTheme(data.theme);
+                                }
+                                alert('Settings imported successfully!');
+                                closeSettingsModal();
+                            }
+                        } catch (error) {
+                            alert('Invalid settings file.');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        function saveSettings() {
+            // Save settings to localStorage
+            localStorage.setItem('sshClientSettings', JSON.stringify(settingsData));
+            alert('Settings saved successfully!');
+            closeSettingsModal();
+        }
+
+        // Load settings on page load
+        function loadSettings() {
+            const saved = localStorage.getItem('sshClientSettings');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    settingsData = { ...settingsData, ...parsed };
+                    updateSettingsUI();
+                } catch (error) {
+                    console.error('Failed to load settings:', error);
+                }
+            }
+        }
+
+        function updateSettingsUI() {
+            // Update toggle states based on loaded settings
+            const toggles = [
+                { id: 'mfa-toggle', value: settingsData.mfa.enabled },
+                { id: 'auto-logout-toggle', value: settingsData.session.autoLogout },
+                { id: 'remember-device-toggle', value: settingsData.session.rememberDevice },
+                { id: 'auto-reconnect-toggle', value: settingsData.terminal.autoReconnect },
+                { id: 'bell-sound-toggle', value: settingsData.terminal.bellSound },
+                { id: 'dark-mode-toggle', value: settingsData.general.darkMode },
+                { id: 'notifications-toggle', value: settingsData.general.notifications },
+                { id: 'auto-save-toggle', value: settingsData.general.autoSave }
+            ];
+
+            toggles.forEach(({ id, value }) => {
+                const toggle = document.getElementById(id);
+                if (toggle) {
+                    if (value) {
+                        toggle.classList.add('active');
+                    } else {
+                        toggle.classList.remove('active');
+                    }
+                }
+            });
+
+            // Update MFA section visibility
+            if (settingsData.mfa.enabled) {
+                document.getElementById('mfa-methods-section').style.display = 'block';
+                updateMFAMethodsUI();
+            }
+        }
+
+        // Change Email/Password Modal Functions
+        function openChangeEmailModal() {
+            document.getElementById('change-email-modal').classList.add('active');
+            // Set current email (could be fetched from user data)
+            document.getElementById('currentEmailDisplay').textContent = 'user@example.com';
+        }
+
+        function closeChangeEmailModal() {
+            document.getElementById('change-email-modal').classList.remove('active');
+            document.getElementById('change-email-form').reset();
+        }
+
+        function openChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.add('active');
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('change-password-modal').classList.remove('active');
+            document.getElementById('change-password-form').reset();
+            // Reset password strength indicator
+            document.getElementById('password-strength-fill').className = 'strength-fill';
+            document.getElementById('password-strength-text').textContent = 'Password strength: Weak';
+            resetPasswordRequirements();
+        }
+
+        // Password strength checking
+        function checkPasswordStrength(password) {
+            const checks = {
+                length: password.length >= 8,
+                uppercase: /[A-Z]/.test(password),
+                lowercase: /[a-z]/.test(password),
+                number: /\d/.test(password),
+                special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+            };
+            
+            const passed = Object.values(checks).filter(Boolean).length;
+            let strength = 'weak';
+            
+            if (passed >= 5) strength = 'strong';
+            else if (passed >= 4) strength = 'good';
+            else if (passed >= 3) strength = 'fair';
+            
+            return { strength, checks };
+        }
+
+        function updatePasswordStrength() {
+            const password = document.getElementById('new-password-change').value;
+            const strengthFill = document.getElementById('password-strength-fill');
+            const strengthText = document.getElementById('password-strength-text');
+            
+            if (!password) {
+                strengthFill.className = 'strength-fill';
+                strengthText.textContent = 'Password strength: Weak';
+                resetPasswordRequirements();
+                return;
+            }
+            
+            const { strength, checks } = checkPasswordStrength(password);
+            
+            strengthFill.className = `strength-fill ${strength}`;
+            strengthText.textContent = `Password strength: ${strength.charAt(0).toUpperCase() + strength.slice(1)}`;
+            
+            // Update requirements
+            document.getElementById('length-req').className = checks.length ? 'requirement met' : 'requirement';
+            document.getElementById('uppercase-req').className = checks.uppercase ? 'requirement met' : 'requirement';
+            document.getElementById('lowercase-req').className = checks.lowercase ? 'requirement met' : 'requirement';
+            document.getElementById('number-req').className = checks.number ? 'requirement met' : 'requirement';
+            document.getElementById('special-req').className = checks.special ? 'requirement met' : 'requirement';
+        }
+
+        function resetPasswordRequirements() {
+            const requirements = ['length-req', 'uppercase-req', 'lowercase-req', 'number-req', 'special-req'];
+            requirements.forEach(id => {
+                document.getElementById(id).className = 'requirement';
+            });
+        }
+
+        // Form event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Password strength checking
+            const newPasswordInput = document.getElementById('new-password-change');
+            if (newPasswordInput) {
+                newPasswordInput.addEventListener('input', updatePasswordStrength);
+            }
+
+            // Change Email Form
+            const changeEmailForm = document.getElementById('change-email-form');
+            if (changeEmailForm) {
+                changeEmailForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const currentPassword = document.getElementById('current-password-email').value;
+                    const newEmail = document.getElementById('new-email').value;
+                    const confirmEmail = document.getElementById('confirm-email').value;
+                    
+                    if (!currentPassword || !newEmail || !confirmEmail) {
+                        alert('Please fill in all fields');
+                        return;
+                    }
+                    
+                    if (newEmail !== confirmEmail) {
+                        alert('Email addresses do not match');
+                        return;
+                    }
+                    
+                    // Email validation
+                    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                    if (!emailRegex.test(newEmail)) {
+                        alert('Please enter a valid email address');
+                        return;
+                    }
+                    
+                    // Simulate API call
+                    try {
+                        // Here you would make actual API call
+                        alert('Email change request sent! Please check your new email for verification.');
+                        document.getElementById('currentEmailDisplay').textContent = newEmail;
+                        closeChangeEmailModal();
+                    } catch (error) {
+                        alert('Failed to change email. Please try again.');
+                    }
+                });
+            }
+
+            // Change Password Form
+            const changePasswordForm = document.getElementById('change-password-form');
+            if (changePasswordForm) {
+                changePasswordForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const currentPassword = document.getElementById('current-password-change').value;
+                    const newPassword = document.getElementById('new-password-change').value;
+                    const confirmPassword = document.getElementById('confirm-password-change').value;
+                    
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        alert('Please fill in all fields');
+                        return;
+                    }
+                    
+                    if (newPassword !== confirmPassword) {
+                        alert('New passwords do not match');
+                        return;
+                    }
+                    
+                    if (currentPassword === newPassword) {
+                        alert('New password must be different from current password');
+                        return;
+                    }
+                    
+                    const { strength, checks } = checkPasswordStrength(newPassword);
+                    const passedChecks = Object.values(checks).filter(Boolean).length;
+                    
+                    if (passedChecks < 4) {
+                        alert('Password does not meet security requirements');
+                        return;
+                    }
+                    
+                    // Simulate API call
+                    try {
+                        // Here you would make actual API call
+                        alert('Password changed successfully! You will be signed out from all devices.');
+                        closeChangePasswordModal();
+                    } catch (error) {
+                        alert('Failed to change password. Please try again.');
+                    }
+                });
+            }
+        });
+
+        async function deleteCurrentClient() {
+            if (!editingClientId) return;
+            
+            if (!confirm('Are you sure you want to delete this SSH client?')) {
+                return;
+            }
+
+            const response = await fetch(`/clients/${editingClientId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                closeCreateModal();
+                fetchClients();
+            }
+        }
+
+        createClientForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const formData = new FormData(createClientForm);
+            const client = Object.fromEntries(formData.entries());
+
+            const url = editingClientId ? `/clients/${editingClientId}` : '/clients';
+            const method = editingClientId ? 'PUT' : 'POST';
+
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(client)
+            });
+
+            if (response.ok) {
+                closeCreateModal();
+                fetchClients();
+            }
+        });
+
+        async function fetchClients() {
+            const response = await fetch('/clients');
+            const data = await response.json();
+            clients = data.clients;
+            renderClients();
+        }
+
+        function renderClients() {
+            clientList.innerHTML = '';
+            clients.forEach((client, index) => {
+                const card = document.createElement('div');
+                card.className = 'host-card';
+                
+                const colorClass = iconColors[index % iconColors.length];
+                const icon = icons[index % icons.length];
+                
+                card.innerHTML = `
+                    <div class="host-icon ${colorClass}">${icon}</div>
+                    <div class="host-info">
+                        <h4>${client.label || client.host}</h4>
+                        <p>ssh, ${client.username}</p>
+                    </div>
+                    <div class="host-actions">
+                        <a class="host-actions edit" title="More options">
+                            <span class="">...</span>
+                        </a>
+                    </div>
+                `;
+                
+                // Click on card to connect
+                card.addEventListener('click', (e) => {
+                    if (!e.target.closest('.host-actions')) {
+                        openTerminal(client);
+                    }
+                });
+                
+                // Edit button
+                card.querySelector('.edit').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openEditModal(client);
+                });
+                
+                clientList.appendChild(card);
+            });
+        }
+
+        function createTab(client) {
+            const tabId = `tab-${client.id}`;
+            const colorClass = iconColors[Math.floor(Math.random() * iconColors.length)];
+            
+            // Create tab
+            const tab = document.createElement('div');
+            tab.className = 'tab';
+            tab.dataset.tabId = tabId;
+            tab.innerHTML = `
+                <div class="tab-icon ${colorClass}">⚡</div>
+                <div class="tab-title">${client.host || client.label}</div>
+                <button class="tab-close" onclick="closeTab('${tabId}', event)">×</button>
+            `;
+            tab.onclick = (e) => {
+                if (!e.target.classList.contains('tab-close')) {
+                    switchTab(tabId);
+                }
+            };
+            
+            // Insert tab after back button
+            const backBtn = tabBar.querySelector('.back-btn');
+            if (backBtn && backBtn.nextSibling) {
+                tabBar.insertBefore(tab, backBtn.nextSibling);
+            } else {
+                tabBar.appendChild(tab);
+            }
+
+            // Create terminal wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'terminal-wrapper';
+            wrapper.dataset.tabId = tabId;
+            wrapper.innerHTML = `<div class="terminal-content" id="${tabId}"></div>`;
+            terminalContainer.appendChild(wrapper);
+
+            return tabId;
+        }
+
+        function backToList() {
+            terminalView.classList.remove('active');
+            sidebar.classList.remove('hidden');
+            settingsIcon.classList.remove('visible');
+        }
+
+        function switchTab(tabId) {
+            // Update tab active state
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-tab-id="${tabId}"]`).classList.add('active');
+
+            // Update terminal wrapper active state
+            document.querySelectorAll('.terminal-wrapper').forEach(w => w.classList.remove('active'));
+            document.querySelector(`.terminal-wrapper[data-tab-id="${tabId}"]`).classList.add('active');
+
+            activeTabId = tabId;
+
+            // Fit terminal
+            if (terminals[tabId] && terminals[tabId].fitAddon) {
+                setTimeout(() => terminals[tabId].fitAddon.fit(), 100);
+            }
+        }
+
+        function closeTab(tabId, event) {
+            event.stopPropagation();
+            
+            // Close WebSocket
+            if (terminals[tabId] && terminals[tabId].ws) {
+                terminals[tabId].ws.close();
+            }
+
+            // Remove tab and terminal
+            document.querySelector(`.tab[data-tab-id="${tabId}"]`).remove();
+            document.querySelector(`.terminal-wrapper[data-tab-id="${tabId}"]`).remove();
+            delete terminals[tabId];
+
+            // Switch to another tab or hide terminal view
+            const remainingTabs = document.querySelectorAll('.tab');
+            if (remainingTabs.length > 0) {
+                const firstTab = remainingTabs[0];
+                switchTab(firstTab.dataset.tabId);
+            } else {
+                terminalView.classList.remove('active');
+                sidebar.classList.remove('hidden');
+            }
+        }
+
+        async function openTerminal(client) {
+            if (!client || client.id === undefined) {
+                alert("Please select a client first.");
+                return;
+            }
+
+            // Show terminal view and hide sidebar on mobile
+            terminalView.classList.add('active');
+            if (window.innerWidth < 1024) {
+                sidebar.classList.add('hidden');
+            }
+
+            // Create new tab
+            const tabId = createTab(client);
+            
+            // Get current theme
+            const theme = themes[currentTheme];
+            
+            // Initialize terminal
+            const term = new Terminal({
+                theme: {
+                    background: theme.background,
+                    foreground: theme.foreground,
+                    cursor: theme.cursor,
+                    selection: theme.cursor + '40',
+                    black: theme.colors[0],
+                    red: theme.colors[1],
+                    green: theme.colors[2],
+                    yellow: theme.colors[3],
+                    blue: theme.colors[4],
+                    magenta: theme.colors[5],
+                    cyan: theme.colors[6],
+                    white: theme.colors[7]
+                },
+                fontSize: 14,
+                fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+                cursorBlink: true
+            });
+            
+            const fitAddon = new FitAddon.FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(document.getElementById(tabId));
+            
+            setTimeout(() => fitAddon.fit(), 100);
+
+            const ws = new WebSocket(`ws://localhost:8000/ws/${client.id}`);
+
+            ws.onopen = () => {
+                term.write('Connected to SSH server\r\n');
+            };
+
+            ws.onmessage = (event) => {
+                term.write(event.data);
+            };
+
+            ws.onerror = (error) => {
+                term.write(`Error: ${error.message}\r\n`);
+            };
+
+            ws.onclose = (event) => {
+                term.write(`\r\nConnection closed: ${event.reason}\r\n`);
+            };
+
+            term.onData((data) => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(data);
+                }
+            });
+
+            terminals[tabId] = { term, fitAddon, ws };
+            switchTab(tabId);
+            
+            // Show settings icon
+            settingsIcon.classList.add('visible');
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (activeTabId && terminals[activeTabId]) {
+                    terminals[activeTabId].fitAddon.fit();
+                }
+            });
+        }
+
+        // Close modal when clicking outside
+        createModal.addEventListener('click', (e) => {
+            if (e.target === createModal) closeCreateModal();
+        });
+
+        // Close settings modal when clicking outside
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) closeSettingsModal();
+        });
+
+        // Close change email modal when clicking outside
+        const changeEmailModal = document.getElementById('change-email-modal');
+        changeEmailModal.addEventListener('click', (e) => {
+            if (e.target === changeEmailModal) closeChangeEmailModal();
+        });
+
+        // Close change password modal when clicking outside
+        const changePasswordModal = document.getElementById('change-password-modal');
+        changePasswordModal.addEventListener('click', (e) => {
+            if (e.target === changePasswordModal) closeChangePasswordModal();
+        });
+
+        // Close theme panel when clicking outside
+        themePanel.addEventListener('click', (e) => {
+            if (e.target === themePanel) toggleThemePanel();
+        });
+
+        // Initialize
+        loadSettings();
+        renderThemes();
+        fetchClients();
+    </script>
+</body>
+</html>
