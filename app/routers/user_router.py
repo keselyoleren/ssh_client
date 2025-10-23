@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.websockets import WebSocketDisconnect
-from app.crud import crud_user
+from app.crud import user
 from app.dependencies import get_db
 from app.schemas import user_schema
 from app.core.jwt_auth import get_current_active_user
@@ -29,29 +29,29 @@ async def login_page(request: Request):
 
 @router.post("/clients")
 async def create_client(client: user_schema.SSHClient, db: Session = Depends(get_db)):
-    return crud_user.create_client(db=db, client=client)
+    return user.create_client(db=db, client=client)
 
 @router.get("/clients")
 async def get_clients(db: Session = Depends(get_db)):
-    return {"clients": crud_user.get_clients(db=db)}
+    return {"clients": user.get_clients(db=db)}
 
 @router.get("/clients/{client_id}")
 async def get_client(client_id: int, db: Session = Depends(get_db)):
-    return crud_user.get_client(db=db, client_id=client_id)
+    return user.get_client(db=db, client_id=client_id)
 
 @router.put("/clients/{client_id}")
 async def update_client(client_id: int, client: user_schema.SSHClient, db: Session = Depends(get_db)):
-    return crud_user.update_client(db=db, client_id=client_id, client=client)
+    return user.update_client(db=db, client_id=client_id, client=client)
 
 @router.delete("/clients/{client_id}")
 async def delete_client(client_id: int, db: Session = Depends(get_db)):
-    return crud_user.delete_client(db=db, client_id=client_id)
+    return user.delete_client(db=db, client_id=client_id)
 
 
 @router.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: int, db: Session = Depends(get_db)):
     await websocket.accept()
-    client_details = crud_user.get_client(db=db, client_id=client_id)
+    client_details = user.get_client(db=db, client_id=client_id)
     if not client_details:
         logger.warning(f"Client with id {client_id} not found.")
         await websocket.close(code=4000, reason="Client not found")

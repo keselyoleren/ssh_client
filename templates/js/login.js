@@ -20,6 +20,7 @@ class LoginManager {
         this.passwordInput = document.getElementById('password');
         this.rememberCheckbox = document.getElementById('remember');
         this.loginBtn = document.getElementById('loginBtn');
+        this.passwordToggles = document.querySelectorAll('.password-toggle');
         
         // MFA code inputs
         this.mfaInputs = document.querySelectorAll('.code-input');
@@ -41,10 +42,6 @@ class LoginManager {
         this.confirmPasswordInput = document.getElementById('confirmPassword');
         this.strengthFill = document.getElementById('strengthFill');
         this.strengthText = document.getElementById('strengthText');
-        
-        // Error/success elements
-        this.errorMessage = document.getElementById('errorMessage');
-        this.successMessage = document.getElementById('successMessage');
     }
 
     initializeEventListeners() {
@@ -52,6 +49,11 @@ class LoginManager {
         if (this.loginForm) {
             this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
         }
+
+        // Password toggles
+        this.passwordToggles.forEach(toggle => {
+            toggle.addEventListener('click', (e) => this.togglePasswordVisibility(e));
+        });
 
         // MFA form
         if (this.mfaForm) {
@@ -103,8 +105,8 @@ class LoginManager {
         }
 
         // Sign up link
-        const signupLink = document.querySelector('a[href="#"]');
-        if (signupLink && signupLink.textContent.includes('Sign up')) {
+        const signupLink = document.querySelector('a[href="/auth/register-page"]');
+        if (signupLink) {
             signupLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 window.location.href = '/auth/register-page';
@@ -130,6 +132,13 @@ class LoginManager {
         }
     }
 
+    togglePasswordVisibility(e) {
+        const toggleButton = e.currentTarget;
+        const passwordInput = toggleButton.previousElementSibling;
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+    }
+
     async handleLogin(e) {
         e.preventDefault();
         
@@ -138,7 +147,7 @@ class LoginManager {
         const remember = this.rememberCheckbox.checked;
         
         if (!email || !password) {
-            this.showError('Please fill in all fields');
+            this.showToast('Please fill in all fields', 'error');
             return;
         }
 
@@ -178,11 +187,11 @@ class LoginManager {
                 }
             } else {
                 console.error('Login failed:', data);
-                this.showError(data.detail || 'Login failed');
+                this.showToast(data.detail || 'Login failed', 'error');
             }
         } catch (error) {
             console.error('Login error:', error);
-            this.showError('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         } finally {
             this.setLoginLoading(false);
         }
@@ -193,7 +202,7 @@ class LoginManager {
         
         const mfaCode = this.getMFACode();
         if (!mfaCode || mfaCode.length !== 6) {
-            this.showError('Please enter a valid 6-digit code');
+            this.showToast('Please enter a valid 6-digit code', 'error');
             return;
         }
 
@@ -220,12 +229,12 @@ class LoginManager {
             if (response.ok) {
                 this.handleLoginSuccess(data, this.rememberCheckbox.checked);
             } else {
-                this.showError(data.detail || 'Invalid MFA code');
+                this.showToast(data.detail || 'Invalid MFA code', 'error');
                 this.clearMFAInputs();
             }
         } catch (error) {
             console.error('MFA verification error:', error);
-            this.showError('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         }
     }
 
@@ -241,7 +250,7 @@ class LoginManager {
         // Store user info
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        this.showSuccess('Login successful! Redirecting...');
+        this.showToast('Login successful! Redirecting...', 'success');
         
         // Redirect to main app
         setTimeout(() => {
@@ -254,7 +263,7 @@ class LoginManager {
         
         const newEmail = this.newEmailInput.value;
         if (!newEmail) {
-            this.showError('Please enter a new email');
+            this.showToast('Please enter a new email', 'error');
             return;
         }
 
@@ -274,7 +283,7 @@ class LoginManager {
             const data = await response.json();
 
             if (response.ok) {
-                this.showSuccess('Email updated successfully!');
+                this.showToast('Email updated successfully!', 'success');
                 this.currentEmailSpan.textContent = newEmail;
                 this.newEmailInput.value = '';
                 
@@ -283,11 +292,11 @@ class LoginManager {
                 userInfo.email = newEmail;
                 localStorage.setItem('user', JSON.stringify(userInfo));
             } else {
-                this.showError(data.detail || 'Failed to update email');
+                this.showToast(data.detail || 'Failed to update email', 'error');
             }
         } catch (error) {
             console.error('Email change error:', error);
-            this.showError('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         }
     }
 
@@ -299,17 +308,17 @@ class LoginManager {
         const confirmPassword = this.confirmPasswordInput.value;
         
         if (!currentPassword || !newPassword || !confirmPassword) {
-            this.showError('Please fill in all fields');
+            this.showToast('Please fill in all fields', 'error');
             return;
         }
         
         if (newPassword !== confirmPassword) {
-            this.showError('New passwords do not match');
+            this.showToast('New passwords do not match', 'error');
             return;
         }
         
         if (newPassword.length < 8) {
-            this.showError('Password must be at least 8 characters long');
+            this.showToast('Password must be at least 8 characters long', 'error');
             return;
         }
 
@@ -331,21 +340,21 @@ class LoginManager {
             const data = await response.json();
 
             if (response.ok) {
-                this.showSuccess('Password updated successfully!');
+                this.showToast('Password updated successfully!', 'success');
                 this.passwordChangeForm.reset();
             } else {
-                this.showError(data.detail || 'Failed to update password');
+                this.showToast(data.detail || 'Failed to update password', 'error');
             }
         } catch (error) {
             console.error('Password change error:', error);
-            this.showError('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         }
     }
 
     async handleForgotPassword() {
         const email = this.emailInput.value;
         if (!email) {
-            this.showError('Please enter your email address first');
+            this.showToast('Please enter your email address first', 'error');
             return;
         }
 
@@ -361,10 +370,10 @@ class LoginManager {
             });
 
             const data = await response.json();
-            this.showSuccess('If the email exists, a reset link has been sent.');
+            this.showToast('If the email exists, a reset link has been sent.', 'success');
         } catch (error) {
             console.error('Password reset error:', error);
-            this.showError('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         }
     }
 
@@ -524,7 +533,7 @@ class LoginManager {
 
     async resendMFACode() {
         // For now, just show a message. In a real app, you'd implement SMS/email resend
-        this.showSuccess('A new code has been sent to your device.');
+        this.showToast('A new code has been sent to your device.', 'success');
     }
 
     // Settings Methods
@@ -562,34 +571,23 @@ class LoginManager {
         }
     }
 
-    showError(message) {
-        if (this.errorMessage) {
-            this.errorMessage.textContent = message;
-            this.errorMessage.style.display = 'block';
-            
-            // Hide after 5 seconds
-            setTimeout(() => {
-                this.errorMessage.style.display = 'none';
-            }, 5000);
-        } else {
-            // Fallback to alert if no error element
-            alert('Error: ' + message);
-        }
-    }
+    showToast(message, type = 'info') {
+        const backgroundColor = {
+            info: '#3498db',
+            success: '#2ecc71',
+            warning: '#f1c40f',
+            error: '#e74c3c'
+        }[type];
 
-    showSuccess(message) {
-        if (this.successMessage) {
-            this.successMessage.textContent = message;
-            this.successMessage.style.display = 'block';
-            
-            // Hide after 3 seconds
-            setTimeout(() => {
-                this.successMessage.style.display = 'none';
-            }, 3000);
-        } else {
-            // Fallback to alert if no success element
-            alert('Success: ' + message);
-        }
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "bottom", // `top` or `bottom`
+            position: "right", // `left`, `center` or `right`
+            backgroundColor: backgroundColor,
+            stopOnFocus: true, // Prevents dismissing of toast on hover
+        }).showToast();
     }
 }
 

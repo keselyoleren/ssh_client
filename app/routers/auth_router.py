@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -12,10 +13,11 @@ from app.schemas.user_schema import (
     ChangeEmail, ChangePassword, TerminalSettings,
     TrustedDeviceResponse
 )
-from app.crud.crud_auth import UserCRUD
+from app.crud.auth import UserCRUD
 from app.core.jwt_auth import create_access_token, get_current_user, get_current_active_user
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 templates = Jinja2Templates(directory="templates")
 
@@ -177,19 +179,14 @@ async def change_password(
     db: Session = Depends(get_db)
 ):
     """Change user password"""
-    print(f"DEBUG: Change password request received for user: {current_user.email}")
-    print(f"DEBUG: Request data - current_password provided: {bool(password_data.current_password)}")
-    print(f"DEBUG: Request data - new_password provided: {bool(password_data.new_password)}")
-    print(f"DEBUG: Request data - confirm_password provided: {bool(password_data.confirm_password)}")
-    
     try:
         success = UserCRUD.change_password(
             db, current_user, password_data.current_password, password_data.new_password
         )
-        print(f"DEBUG: Password change successful for user: {current_user.email}")
+        logger.info(f"Password change successful for user: {current_user.email}")
         return {"success": success, "message": "Password updated successfully"}
     except Exception as e:
-        print(f"DEBUG: Password change failed for user: {current_user.email}, error: {str(e)}")
+        logger.error(f"Password change failed for user: {current_user.email}. Error: {str(e)}")
         raise
 
 # HTML Templates

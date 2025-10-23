@@ -1688,7 +1688,7 @@
 
         function setupAuthenticator() {
             // Simulate setup process
-            alert('Authenticator app setup would be implemented here.\n\nQR Code generation and secret key management.');
+            this.showToast('Authenticator app setup would be implemented here.\n\nQR Code generation and secret key management.');
             settingsData.mfa.methods.authenticator = true;
             updateMFAMethodsUI();
         }
@@ -1696,14 +1696,14 @@
         function setupSMS() {
             const phone = prompt('Enter your phone number:');
             if (phone) {
-                alert(`SMS verification would be sent to ${phone}`);
+                this.showToast(`SMS verification would be sent to ${phone}`);
                 settingsData.mfa.methods.sms = true;
                 updateMFAMethodsUI();
             }
         }
 
         function setupEmail() {
-            alert('Email verification method has been enabled.');
+            this.showToast('Email verification method has been enabled.');
             settingsData.mfa.methods.email = true;
             updateMFAMethodsUI();
         }
@@ -1843,7 +1843,7 @@
             if (confirm('This will clear all session data and settings. Continue?')) {
                 localStorage.clear();
                 sessionStorage.clear();
-                alert('Session data cleared. Please refresh the page.');
+                this.showToast('Session data cleared. Please refresh the page.');
             }
         }
 
@@ -1878,11 +1878,11 @@
                                 if (data.theme) {
                                     applyTheme(data.theme);
                                 }
-                                alert('Settings imported successfully!');
+                                this.showToast('Settings imported successfully!');
                                 closeSettingsModal();
                             }
                         } catch (error) {
-                            alert('Invalid settings file.');
+                            this.showToast('Invalid settings file.');
                         }
                     };
                     reader.readAsText(file);
@@ -1894,7 +1894,7 @@
         function saveSettings() {
             // Save settings to localStorage
             localStorage.setItem('sshClientSettings', JSON.stringify(settingsData));
-            alert('Settings saved successfully!');
+            this.showToast('Settings saved successfully!');
             closeSettingsModal();
         }
 
@@ -2039,30 +2039,30 @@
                     const confirmEmail = document.getElementById('confirm-email').value;
                     
                     if (!currentPassword || !newEmail || !confirmEmail) {
-                        alert('Please fill in all fields');
+                        this.showToast('Please fill in all fields');
                         return;
                     }
                     
                     if (newEmail !== confirmEmail) {
-                        alert('Email addresses do not match');
+                        this.showToast('Email addresses do not match');
                         return;
                     }
                     
                     // Email validation
                     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                     if (!emailRegex.test(newEmail)) {
-                        alert('Please enter a valid email address');
+                        this.showToast('Please enter a valid email address');
                         return;
                     }
                     
                     // Simulate API call
                     try {
                         // Here you would make actual API call
-                        alert('Email change request sent! Please check your new email for verification.');
+                        this.showToast('Email change request sent! Please check your new email for verification.');
                         document.getElementById('currentEmailDisplay').textContent = newEmail;
                         closeChangeEmailModal();
                     } catch (error) {
-                        alert('Failed to change email. Please try again.');
+                        this.showToast('Failed to change email. Please try again.');
                     }
                 });
             }
@@ -2078,17 +2078,17 @@
                     const confirmPassword = document.getElementById('confirm-password-change').value;
                     
                     if (!currentPassword || !newPassword || !confirmPassword) {
-                        alert('Please fill in all fields');
+                        this.showToast('Please fill in all fields');
                         return;
                     }
                     
                     if (newPassword !== confirmPassword) {
-                        alert('New passwords do not match');
+                        this.showToast('New passwords do not match');
                         return;
                     }
                     
                     if (currentPassword === newPassword) {
-                        alert('New password must be different from current password');
+                        this.showToast('New password must be different from current password');
                         return;
                     }
                     
@@ -2096,17 +2096,17 @@
                     const passedChecks = Object.values(checks).filter(Boolean).length;
                     
                     if (passedChecks < 4) {
-                        alert('Password does not meet security requirements');
+                        this.showToast('Password does not meet security requirements');
                         return;
                     }
                     
                     // Simulate API call
                     try {
                         // Here you would make actual API call
-                        alert('Password changed successfully! You will be signed out from all devices.');
+                        this.showToast('Password changed successfully! You will be signed out from all devices.');
                         closeChangePasswordModal();
                     } catch (error) {
-                        alert('Failed to change password. Please try again.');
+                        this.showToast('Failed to change password. Please try again.');
                     }
                 });
             }
@@ -2283,7 +2283,7 @@
 
         async function openTerminal(client) {
             if (!client || client.id === undefined) {
-                alert("Please select a client first.");
+                this.showToast("Please select a client first.");
                 return;
             }
 

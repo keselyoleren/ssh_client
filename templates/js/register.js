@@ -148,13 +148,16 @@ class RegisterManager {
             const data = await response.json();
 
             if (response.ok) {
-                this.showSuccessMessage();
+                this.showToast('Registration successful! Please login.', 'success');
+                setTimeout(() => {
+                    window.location.href = '/auth/login-page';
+                }, 2000);
             } else {
-                this.showErrorMessage(data.detail || 'Registration failed. Please try again.');
+                this.showToast(data.detail || 'Registration failed. Please try again.', 'error');
             }
         } catch (error) {
             console.error('Registration error:', error);
-            this.showErrorMessage('A network error occurred. Please try again.');
+            this.showToast('A network error occurred. Please try again.', 'error');
         } finally {
             this.setLoading(false);
         }
@@ -175,19 +178,24 @@ class RegisterManager {
         }
     }
 
-    showSuccessMessage() {
-        this.form.style.display = 'none';
-        document.getElementById('successMessage').style.display = 'block';
-    }
+    showToast(message, type = 'info') {
+        const backgroundColor = {
+            info: '#3498db',
+            success: '#2ecc71',
+            warning: '#f1c40f',
+            error: '#e74c3c'
+        }[type];
 
-    showErrorMessage(message) {
-        document.getElementById('errorText').textContent = message;
-        document.getElementById('errorMessage').style.display = 'block';
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "top", // `top` or `bottom`
+            position: "right", // `left`, `center` or `right`
+            backgroundColor: backgroundColor,
+            stopOnFocus: true, // Prevents dismissing of toast on hover
+        }).showToast();
     }
-}
-
-function hideError() {
-    document.getElementById('errorMessage').style.display = 'none';
 }
 
 // Initialize when DOM is loaded

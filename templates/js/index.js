@@ -1,5 +1,3 @@
-// SSH Client - Main App JavaScript
-
 class SSHClientApp {
     constructor() {
         this.terminals = {};
@@ -269,11 +267,11 @@ class SSHClientApp {
             } else {
                 const error = await response.json();
                 console.error('MFA setup error:', error);
-                this.showNotification('Failed to setup MFA: ' + error.detail, 'error');
+                this.showToast('Failed to setup MFA: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('MFA setup error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
@@ -389,7 +387,7 @@ class SSHClientApp {
         const code = Array.from(codeInputs).map(input => input.value).join('');
         
         if (code.length !== 6) {
-            this.showNotification('Please enter a valid 6-digit code', 'error');
+            this.showToast('Please enter a valid 6-digit code', 'error');
             return;
         }
 
@@ -405,7 +403,7 @@ class SSHClientApp {
             });
 
             if (response.ok) {
-                this.showNotification('MFA enabled successfully!', 'success');
+                this.showToast('MFA enabled successfully!', 'success');
                 this.settingsData.mfa.enabled = true;
                 if (this.currentUser) {
                     this.currentUser.mfa_enabled = true;
@@ -414,11 +412,11 @@ class SSHClientApp {
                 document.body.removeChild(modal);
             } else {
                 const error = await response.json();
-                this.showNotification('Invalid code: ' + error.detail, 'error');
+                this.showToast('Invalid code: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('MFA verification error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
@@ -438,7 +436,7 @@ class SSHClientApp {
             });
 
             if (response.ok) {
-                this.showNotification('MFA disabled successfully!', 'success');
+                this.showToast('MFA disabled successfully!', 'success');
                 this.settingsData.mfa.enabled = false;
                 if (this.currentUser) {
                     this.currentUser.mfa_enabled = false;
@@ -447,11 +445,11 @@ class SSHClientApp {
                 this.closeMFADisableFormModal();
             } else {
                 const error = await response.json();
-                this.showNotification('Failed to disable MFA: ' + error.detail, 'error');
+                this.showToast('Failed to disable MFA: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('MFA disable error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
@@ -519,8 +517,8 @@ class SSHClientApp {
         const value = input.value;
 
         // Only allow digits
-        if (!/^\d*$/.test(value)) {
-            input.value = value.replace(/\D/g, '');
+        if (!/^Ud*U$/.test(value)) {
+            input.value = value.replace(/[UD]/g, '');
             return;
         }
 
@@ -552,7 +550,7 @@ class SSHClientApp {
         } 
         else {
             console.error('No backup codes found');
-            this.showNotification('No backup codes available to download', 'error');
+            this.showToast('No backup codes available to download', 'error');
             return;
         }
 
@@ -578,7 +576,7 @@ Important: Each code can only be used once. Store these codes securely!
         
         window.URL.revokeObjectURL(url);
         
-        this.showNotification('Backup codes downloaded successfully!', 'success');
+        this.showToast('Backup codes downloaded successfully!', 'success');
     }
 
     // Account Management Methods
@@ -591,7 +589,7 @@ Important: Each code can only be used once. Store these codes securely!
 
         const confirmPassword = prompt('Confirm your new password:');
         if (newPassword !== confirmPassword) {
-            this.showNotification('Passwords do not match', 'error');
+            this.showToast('Passwords do not match', 'error');
             return;
         }
 
@@ -611,14 +609,14 @@ Important: Each code can only be used once. Store these codes securely!
             });
 
             if (response.ok) {
-                this.showNotification('Password updated successfully!', 'success');
+                this.showToast('Password updated successfully!', 'success');
             } else {
                 const error = await response.json();
-                this.showNotification('Failed to update password: ' + error.detail, 'error');
+                this.showToast('Failed to update password: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('Password change error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
@@ -642,36 +640,34 @@ Important: Each code can only be used once. Store these codes securely!
             if (response.ok) {
                 this.currentUser.email = newEmail;
                 this.updateUserInterface();
-                this.showNotification('Email updated successfully!', 'success');
+                this.showToast('Email updated successfully!', 'success');
             } else {
                 const error = await response.json();
-                this.showNotification('Failed to update email: ' + error.detail, 'error');
+                this.showToast('Failed to update email: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('Email change error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-        
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                if (document.body.contains(notification)) {
-                    document.body.removeChild(notification);
-                }
-            }, 300);
-        }, 3000);
+    showToast(message, type = 'info') {
+        const backgroundColor = {
+            info: '#3498db',
+            success: '#2ecc71',
+            warning: '#f1c40f',
+            error: '#e74c3c'
+        }[type];
+
+        Toastify({
+            text: message,
+            duration: 3000,
+            close: true,
+            gravity: "bottom", // `top` or `bottom`
+            position: "right", // `left`, `center` or `right`
+            backgroundColor: backgroundColor,
+            stopOnFocus: true, // Prevents dismissing of toast on hover
+        }).showToast();
     }
 
     initializeElements() {
@@ -817,7 +813,8 @@ Important: Each code can only be used once. Store these codes securely!
             ).join('');
             
             item.innerHTML = `
-                <div class="theme-preview" style="background: ${theme.background};">
+                <div class="theme-preview" style="background: ${theme.background};
+">
                     <div class="theme-preview-lines">${previewLines}</div>
                 </div>
                 <div class="theme-info">
@@ -980,19 +977,19 @@ Important: Each code can only be used once. Store these codes securely!
         const confirmEmail = document.getElementById('confirm-email').value;
         
         if (!currentPassword || !newEmail || !confirmEmail) {
-            this.showNotification('Please fill in all fields', 'error');
+            this.showToast('Please fill in all fields', 'error');
             return;
         }
         
         if (newEmail !== confirmEmail) {
-            this.showNotification('Email addresses do not match', 'error');
+            this.showToast('Email addresses do not match', 'error');
             return;
         }
         
         // Email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const emailRegex = /^[^Us@]+U@[U^Us@]+U.[U^Us@]+$/;
         if (!emailRegex.test(newEmail)) {
-            this.showNotification('Please enter a valid email address', 'error');
+            this.showToast('Please enter a valid email address', 'error');
             return;
         }
         
@@ -1018,15 +1015,15 @@ Important: Each code can only be used once. Store these codes securely!
                 localStorage.setItem('user', JSON.stringify(user));
                 
                 document.getElementById('currentEmailDisplay').textContent = newEmail;
-                this.showNotification('Email updated successfully!', 'success');
+                this.showToast('Email updated successfully!', 'success');
                 this.closeChangeEmailModal();
             } else {
                 const error = await response.json();
-                this.showNotification('Failed to update email: ' + error.detail, 'error');
+                this.showToast('Failed to update email: ' + error.detail, 'error');
             }
         } catch (error) {
             console.error('Email change error:', error);
-            this.showNotification('A network error occurred', 'error');
+            this.showToast('A network error occurred', 'error');
         }
     }
 
@@ -1049,21 +1046,21 @@ Important: Each code can only be used once. Store these codes securely!
         console.log('=== VALIDATION CHECKS ===');
         if (!currentPassword || !newPassword || !confirmPassword) {
             console.log('VALIDATION FAILED: Empty fields');
-            this.showNotification('Please fill in all fields', 'error');
+            this.showToast('Please fill in all fields', 'error');
             return;
         }
         console.log('✓ All fields filled');
         
         if (newPassword !== confirmPassword) {
             console.log('VALIDATION FAILED: Passwords do not match');
-            this.showNotification('New passwords do not match', 'error');
+            this.showToast('New passwords do not match', 'error');
             return;
         }
         console.log('✓ Passwords match');
         
         if (currentPassword === newPassword) {
             console.log('VALIDATION FAILED: Same password');
-            this.showNotification('New password must be different from current password', 'error');
+            this.showToast('New password must be different from current password', 'error');
             return;
         }
         console.log('✓ Passwords are different');
@@ -1074,7 +1071,7 @@ Important: Each code can only be used once. Store these codes securely!
         
         if (passedChecks < 4) {
             console.log('VALIDATION FAILED: Password strength insufficient');
-            this.showNotification('Password does not meet security requirements', 'error');
+            this.showToast('Password does not meet security requirements', 'error');
             return;
         }
         console.log('✓ Password strength OK');
@@ -1091,7 +1088,7 @@ Important: Each code can only be used once. Store these codes securely!
             
             if (!token) {
                 console.log('ERROR: No token found - redirecting to login');
-                this.showNotification('Authentication required. Please log in again.', 'error');
+                this.showToast('Authentication required. Please log in again.', 'error');
                 window.location.href = '/login';
                 return;
             }
@@ -1123,7 +1120,7 @@ Important: Each code can only be used once. Store these codes securely!
             console.log('DEBUG: Response headers:', [...response.headers.entries()]);
 
             if (response.ok) {
-                this.showNotification('Password changed successfully! You will be signed out from all devices. Please log in with your new password.', 'success');
+                this.showToast('Password changed successfully! You will be signed out from all devices. Please log in with your new password.', 'success');
                 
                 // Show additional guidance
                 setTimeout(() => {
@@ -1139,16 +1136,16 @@ Important: Each code can only be used once. Store these codes securely!
             } else {
                 const errorData = await response.json();
                 if (response.status === 400) {
-                    this.showNotification(errorData.detail || 'Password change failed. Please check your current password.', 'error');
+                    this.showToast(errorData.detail || 'Password change failed. Please check your current password.', 'error');
                 } else {
-                    this.showNotification(errorData.detail || 'Failed to change password. Please try again.', 'error');
+                    this.showToast(errorData.detail || 'Failed to change password. Please try again.', 'error');
                 }
                 this.closeChangePasswordModal();
             }
         } catch (error) {
             console.error('Password change error:', error);
             console.log('DEBUG: Error details:', error.message);
-            this.showNotification('Failed to change password: ' + error.message, 'error');
+            this.showToast('Failed to change password: ' + error.message, 'error');
             this.closeChangePasswordModal();
         }
     }
@@ -1306,7 +1303,7 @@ Important: Each code can only be used once. Store these codes securely!
 
     async openTerminal(client) {
         if (!client || client.id === undefined) {
-            alert("Please select a client first.");
+            this.showToast("Please select a client first.", 'warning');
             return;
         }
 
@@ -1404,7 +1401,8 @@ Important: Each code can only be used once. Store these codes securely!
             const isSelected = themeId === currentTheme ? 'selected' : '';
             themeOptions += `
                 <div class="theme-option ${isSelected}" data-theme-id="${themeId}" onclick="sshApp.applyTerminalTheme('${tabId}', '${themeId}')">
-                    <div class="theme-preview-mini" style="background: ${theme.background};">
+                    <div class="theme-preview-mini" style="background: ${theme.background};
+">
                         <div class="theme-preview-dot" style="background: ${theme.foreground};"></div>
                     </div>
                     <span class="theme-name">${theme.name}</span>
@@ -1471,6 +1469,7 @@ Important: Each code can only be used once. Store these codes securely!
     // Settings Functions
     async loadSettings() {
         try {
+            console.log(this.getToken())
             // Load settings from server
             const response = await fetch('/auth/terminal-settings', {
                 headers: {
@@ -1587,7 +1586,7 @@ Important: Each code can only be used once. Store these codes securely!
     async saveSettings() {
         // Save terminal settings to server
         await this.saveTerminalSettings();
-        alert('Settings saved successfully!');
+        this.showToast('Settings saved successfully!', 'success');
         this.closeSettingsModal();
     }
 
@@ -1658,12 +1657,12 @@ Important: Each code can only be used once. Store these codes securely!
         const mfaCode = document.getElementById('mfa-disable-code').value;
         
         if (!password || !mfaCode) {
-            this.showNotification('Please fill in all fields', 'error');
+            this.showToast('Please fill in all fields', 'error');
             return;
         }
         
-        if (mfaCode.length !== 6 || !/^\d{6}$/.test(mfaCode)) {
-            this.showNotification('Please enter a valid 6-digit MFA code', 'error');
+        if (mfaCode.length !== 6 || !/^Ud{6}U$/.test(mfaCode)) {
+            this.showToast('Please enter a valid 6-digit MFA code', 'error');
             return;
         }
         
@@ -1687,16 +1686,16 @@ Important: Each code can only be used once. Store these codes securely!
         if (!this.settingsData.mfa.enabled) {
             this.setupMFA();
         } else {
-            this.showNotification('MFA is already enabled', 'info');
+            this.showToast('MFA is already enabled', 'info');
         }
     }
 
     setupSMS() {
-        this.showNotification('SMS MFA is not yet implemented. Please use the Authenticator app.', 'info');
+        this.showToast('SMS MFA is not yet implemented. Please use the Authenticator app.', 'info');
     }
 
     setupEmail() {
-        alert('Email verification method has been enabled.');
+        this.showToast('Email verification method has been enabled.', 'success');
         this.settingsData.mfa.methods.email = true;
         this.updateMFAMethodsUI();
     }
@@ -1757,7 +1756,7 @@ Important: Each code can only be used once. Store these codes securely!
         
         if (!backupCodes || backupCodes.length === 0) {
             console.error('No backup codes found in any source');
-            this.showNotification('No backup codes available. Click "Regenerate" first to create new backup codes.', 'warning');
+            this.showToast('No backup codes available. Click "Regenerate" first to create new backup codes.', 'warning');
             return;
         }
         
@@ -1784,7 +1783,7 @@ Generated on ${new Date().toLocaleString()}`;
         a.click();
         URL.revokeObjectURL(url);
         
-        this.showNotification('Backup codes downloaded successfully!', 'success');
+        this.showToast('Backup codes downloaded successfully!', 'success');
     }
 
     printBackupCodes() {
@@ -1959,7 +1958,7 @@ Generated on ${new Date().toLocaleString()}`;
         if (confirm('This will clear all session data and settings. Continue?')) {
             localStorage.clear();
             sessionStorage.clear();
-            alert('Session data cleared. Please refresh the page.');
+            this.showToast('Session data cleared. Please refresh the page.', 'info');
         }
     }
 
@@ -1994,11 +1993,11 @@ Generated on ${new Date().toLocaleString()}`;
                             if (data.theme) {
                                 this.applyTheme(data.theme);
                             }
-                            alert('Settings imported successfully!');
+                            this.showToast('Settings imported successfully!', 'success');
                             this.closeSettingsModal();
                         }
                     } catch (error) {
-                        alert('Invalid settings file.');
+                        this.showToast('Invalid settings file.', 'error');
                     }
                 };
                 reader.readAsText(file);

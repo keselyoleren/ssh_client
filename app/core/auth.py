@@ -153,12 +153,7 @@ class AuthManager:
                     server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 server.send_message(msg)
                 server.quit()
-            else:
-                # For development - just log the reset link
-                print(f"Password reset link for {email}: {reset_link}")
-                
         except Exception as e:
-            print(f"Failed to send email: {e}")
             # In production, you might want to log this error properly
             pass
 

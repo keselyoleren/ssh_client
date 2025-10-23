@@ -7,6 +7,11 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+.idea
+.DS_Store
+.vscode
+.envrc
+.pytest_cache
 .Python
 build/
 develop-eggs/
