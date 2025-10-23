@@ -98,7 +98,7 @@ def detect_operating_system(ssh_client):
 @router.post("/clients/{client_id}/detect-os")
 async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
     """Detect and update the operating system of an SSH client"""
-    client_details = crud_user.get_client(db=db, client_id=client_id)
+    client_details = user.get_client(db=db, client_id=client_id)
     if not client_details:
         return {"error": "Client not found"}
     
@@ -129,7 +129,7 @@ async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
             detected_os=detected_os
         )
         
-        updated_client = crud_user.update_client(db=db, client_id=client_id, client=client_data)
+        updated_client = user.update_client(db=db, client_id=client_id, client=client_data)
         return {"detected_os": detected_os, "client": updated_client}
         
     except Exception as e:
