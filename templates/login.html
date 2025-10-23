@@ -5,46 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SSH Client - Login</title>
     <link rel="stylesheet" href="/css/login.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
 </head>
 <body>
     <div class="login-container">
-        <!-- Settings Menu -->
-        <div class="settings-menu">
-            <div class="settings-dropdown">
-                <button class="settings-toggle" onclick="toggleSettingsMenu()">
-                    ⚙
-                </button>
-                <div class="settings-menu-content" id="settingsMenuContent">
-                    <div class="settings-menu-header">
-                        <h3>Account Settings</h3>
-                        <p>Manage your account preferences</p>
-                    </div>
-                    <div class="settings-menu-item" onclick="showChangeEmailForm()">
-                        <span class="settings-menu-icon">✉</span>
-                        <div class="settings-menu-text">
-                            <h4>Change Email</h4>
-                            <p>Update your email address</p>
-                        </div>
-                    </div>
-                    <div class="settings-menu-item" onclick="showChangePasswordForm()">
-                        <span class="settings-menu-icon">🔒</span>
-                        <div class="settings-menu-text">
-                            <h4>Change Password</h4>
-                            <p>Update your password</p>
-                        </div>
-                    </div>
-                    <div class="settings-menu-item" onclick="showLogin()">
-                        <span class="settings-menu-icon">←</span>
-                        <div class="settings-menu-text">
-                            <h4>Back to Login</h4>
-                            <p>Return to sign in</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Error/Success Messages -->
         <div id="errorMessage" class="error-message"></div>
         <div id="successMessage" class="success-message"></div>
 
@@ -65,7 +30,7 @@
                     <label for="password" class="form-label">Password</label>
                     <div class="password-group">
                         <input type="password" id="password" name="password" class="form-input" placeholder="Enter your password" required>
-                        <button type="button" class="password-toggle" onclick="togglePassword()">
+                        <button type="button" class="password-toggle">
                             👁
                         </button>
                     </div>
@@ -94,7 +59,7 @@
             </button>
 
             <div class="register-link">
-                Don't have an account? <a href="#">Sign up</a>
+                Don't have an account? <a href="/auth/register-page">Sign up</a>
             </div>
         </div>
 
@@ -216,7 +181,7 @@
                 <label for="currentPassword" class="form-label">Current Password</label>
                 <div class="password-group">
                     <input type="password" id="currentPassword" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
-                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPassword')">👁</button>
+                    <button type="button" class="password-toggle">👁</button>
                 </div>
             </div>
 
@@ -259,7 +224,7 @@
                 <label for="currentPasswordChange" class="form-label">Current Password</label>
                 <div class="password-group">
                     <input type="password" id="currentPasswordChange" name="currentPassword" class="form-input" placeholder="Enter your current password" required>
-                    <button type="button" class="password-toggle" onclick="togglePasswordField('currentPasswordChange')">👁</button>
+                    <button type="button" class="password-toggle">👁</button>
                 </div>
             </div>
 
@@ -267,7 +232,7 @@
                 <label for="newPassword" class="form-label">New Password</label>
                 <div class="password-group">
                     <input type="password" id="newPassword" name="newPassword" class="form-input" placeholder="Enter your new password" required>
-                    <button type="button" class="password-toggle" onclick="togglePasswordField('newPassword')">👁</button>
+                    <button type="button" class="password-toggle">👁</button>
                 </div>
                 <div class="strength-meter">
                     <div class="strength-bar">
@@ -281,7 +246,7 @@
                 <label for="confirmPassword" class="form-label">Confirm New Password</label>
                 <div class="password-group">
                     <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Confirm your new password" required>
-                    <button type="button" class="password-toggle" onclick="togglePasswordField('confirmPassword')">👁</button>
+                    <button type="button" class="password-toggle">👁</button>
                 </div>
             </div>
 

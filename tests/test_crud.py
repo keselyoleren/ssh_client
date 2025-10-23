@@ -1,7 +1,7 @@
 import pytest
 from fastapi import status
 from app.models.user_model import User
-from app.crud.crud_auth import UserCRUD
+from app.crud.auth import UserCRUD
 from app.schemas.user_schema import UserCreate, UserUpdate
 
 class TestUserCRUD:

@@ -524,7 +524,7 @@ class LoginManager {
             }, 5000);
         } else {
             // Fallback to alert if no error element
-            alert('Error: ' + message);
+            this.showToast('Error: ' + message);
         }
     }
 
@@ -539,7 +539,7 @@ class LoginManager {
             }, 3000);
         } else {
             // Fallback to alert if no success element
-            alert('Success: ' + message);
+            this.showToast('Success: ' + message);
         }
     }
 }
