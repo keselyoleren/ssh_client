@@ -38,6 +38,23 @@ class SSHClientApp {
         this.iconColors = ['blue'];
         this.icons = ['🖥️'];
         
+        // OS-based icons mapping
+        this.osIcons = {
+            'linux': '🐧',        // Penguin for Linux
+            'ubuntu': '🟠',       // Orange circle for Ubuntu
+            'debian': '🔴',       // Red circle for Debian
+            'redhat': '🎩',       // Hat for Red Hat/CentOS
+            'fedora': '🔵',       // Blue circle for Fedora
+            'alpine': '🏔️',       // Mountain for Alpine
+            'arch': '🏛️',        // Classical building for Arch
+            'macos': '🍎',        // Apple for macOS
+            'windows': '🪟',      // Window for Windows
+            'freebsd': '😈',      // Devil for FreeBSD
+            'openbsd': '🐡',      // Pufferfish for OpenBSD
+            'unknown': '🖥️',     // Generic computer
+            'default': '⚡'       // Lightning for terminals (unchanged)
+        };
+        
         this.themes = {
             'flexoki-dark': {
                 name: 'Flexoki Dark',
@@ -688,6 +705,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.submitBtn = document.getElementById('submit-btn');
         this.clientIdInput = document.getElementById('client-id');
         this.deleteBtn = document.getElementById('delete-btn');
+        this.duplicateBtn = document.getElementById('duplicate-btn');
         this.settingsModal = document.getElementById('settings-modal');
     }
 
@@ -885,6 +903,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.modalHeaderTitle.textContent = 'Create SSH Client';
         this.submitBtn.textContent = 'Create';
         this.deleteBtn.style.display = 'none';
+        this.duplicateBtn.style.display = 'none';
         this.createClientForm.reset();
         this.clientIdInput.value = '';
         this.createModal.classList.add('active');
@@ -895,6 +914,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.modalHeaderTitle.textContent = 'Edit SSH Client';
         this.submitBtn.textContent = 'Update';
         this.deleteBtn.style.display = 'block';
+        this.duplicateBtn.style.display = 'block';
         
         document.getElementById('label').value = client.label;
         document.getElementById('host').value = client.host;
@@ -911,6 +931,8 @@ Important: Each code can only be used once. Store these codes securely!
         this.createModal.classList.remove('active');
         this.createClientForm.reset();
         this.editingClientId = null;
+        this.deleteBtn.style.display = 'none';
+        this.duplicateBtn.style.display = 'none';
     }
 
     // Settings Modal Functions
@@ -1167,12 +1189,91 @@ Important: Each code can only be used once. Store these codes securely!
         }
     }
 
+    duplicateCurrentClient() {
+        if (!this.editingClientId) return;
+        
+        // Get current form values
+        const label = document.getElementById('label').value;
+        const host = document.getElementById('host').value;
+        const port = document.getElementById('port').value;
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const privateKey = document.getElementById('private_key').value;
+        
+        // Close current modal
+        this.closeCreateModal();
+        
+        // Open create modal with duplicated values
+        this.openCreateModal();
+        
+        // Set form values to duplicated data with modified label
+        document.getElementById('label').value = `${label} (Copy)`;
+        document.getElementById('host').value = host;
+        document.getElementById('port').value = port;
+        document.getElementById('username').value = username;
+        document.getElementById('password').value = password;
+        document.getElementById('private_key').value = privateKey;
+        
+        // Focus on the label field so user can modify the name
+        document.getElementById('label').focus();
+        document.getElementById('label').select();
+    }
+
     // Client Management
     async fetchClients() {
         const response = await fetch('/clients');
         const data = await response.json();
         this.clients = data.clients;
         this.renderClients();
+    }
+
+    getClientIcon(client) {
+        // Return OS-specific icon if detected, otherwise use generic computer icon
+        return this.osIcons[client.detected_os] || this.osIcons['unknown'];
+    }
+
+    getTabIcon(client) {
+        // Return OS-specific icon for tab, otherwise use lightning bolt
+        return this.osIcons[client.detected_os] || this.osIcons['default'];
+    }
+
+    async detectClientOS(clientId) {
+        try {
+            const response = await fetch(`/clients/${clientId}/detect-os`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+            
+            if (data.detected_os && data.detected_os !== 'unknown') {
+                // Update the client in our local array
+                const clientIndex = this.clients.findIndex(c => c.id === clientId);
+                if (clientIndex !== -1) {
+                    this.clients[clientIndex].detected_os = data.detected_os;
+                }
+                
+                // Refresh the client list to show new icon
+                this.renderClients();
+                
+                // Update any open tabs for this client
+                this.updateTabIcon(clientId, data.detected_os);
+            }
+            
+            return data.detected_os;
+        } catch (error) {
+            console.error('Failed to detect OS:', error);
+            return 'unknown';
+        }
+    }
+
+    updateTabIcon(clientId, detectedOs) {
+        const tabId = `tab-${clientId}`;
+        const tab = document.querySelector(`[data-tab-id="${tabId}"]`);
+        if (tab) {
+            const tabIcon = tab.querySelector('.tab-icon');
+            if (tabIcon) {
+                tabIcon.textContent = this.osIcons[detectedOs] || this.osIcons['default'];
+            }
+        }
     }
 
     renderClients() {
@@ -1182,10 +1283,10 @@ Important: Each code can only be used once. Store these codes securely!
             card.className = 'host-card';
             
             const colorClass = this.iconColors[index % this.iconColors.length];
-            const icon = this.icons[index % this.icons.length];
+            const icon = this.getClientIcon(client);
             
             card.innerHTML = `
-                <div class="host-icon ${colorClass}">${icon}</div>
+                <div class="host-icon ${colorClass}" title="OS: ${client.detected_os || 'Unknown'}">${icon}</div>
                 <div class="host-info">
                     <h4>${client.label || client.host}</h4>
                     <p>ssh, ${client.username}</p>
@@ -1210,8 +1311,130 @@ Important: Each code can only be used once. Store these codes securely!
                 this.openEditModal(client);
             });
             
+            // Right-click context menu for OS detection
+            card.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                this.showClientContextMenu(e, client);
+            });
+            
             this.clientList.appendChild(card);
         });
+    }
+
+    showClientContextMenu(event, client) {
+        // Remove any existing context menu
+        const existingMenu = document.querySelector('.client-context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Create context menu
+        const menu = document.createElement('div');
+        menu.className = 'client-context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = `${event.clientX}px`;
+        menu.style.top = `${event.clientY}px`;
+        menu.style.zIndex = '10000';
+        
+        menu.innerHTML = `
+            <div class="context-menu-item" data-action="detect-os">
+                🔍 Detect OS
+            </div>
+            <div class="context-menu-item" data-action="edit">
+                ✏️ Edit Client
+            </div>
+        `;
+
+        // Add menu to body
+        document.body.appendChild(menu);
+
+        // Add event listeners
+        menu.addEventListener('click', async (e) => {
+            const action = e.target.getAttribute('data-action');
+            if (action === 'detect-os') {
+                menu.remove();
+                await this.detectClientOSWithFeedback(client);
+            } else if (action === 'edit') {
+                menu.remove();
+                this.openEditModal(client);
+            }
+        });
+
+        // Remove menu when clicking outside
+        document.addEventListener('click', () => {
+            if (menu && menu.parentNode) {
+                menu.remove();
+            }
+        }, { once: true });
+    }
+
+    async detectClientOSWithFeedback(client) {
+        try {
+            // Show loading indicator
+            const clientCard = document.querySelector(`.host-card:nth-child(${this.clients.indexOf(client) + 1}) .host-icon`);
+            if (clientCard) {
+                const originalIcon = clientCard.innerHTML;
+                clientCard.innerHTML = '⏳';
+                
+                const detectedOs = await this.detectClientOS(client.id);
+                
+                // Show success message
+                if (detectedOs && detectedOs !== 'unknown') {
+                    this.showNotification(`OS detected: ${detectedOs}`, 'success');
+                } else {
+                    this.showNotification('Could not detect OS', 'warning');
+                    clientCard.innerHTML = originalIcon;
+                }
+            }
+        } catch (error) {
+            console.error('OS detection failed:', error);
+            this.showNotification('OS detection failed', 'error');
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            z-index: 10001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        `;
+
+        // Set background color based on type
+        const colors = {
+            success: '#28a745',
+            warning: '#ffc107',
+            error: '#dc3545',
+            info: '#17a2b8'
+        };
+        notification.style.backgroundColor = colors[type] || colors.info;
+
+        document.body.appendChild(notification);
+
+        // Animate in
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 10);
+
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 300);
+        }, 3000);
     }
 
     // Terminal Management
@@ -1223,8 +1446,9 @@ Important: Each code can only be used once. Store these codes securely!
         const tab = document.createElement('div');
         tab.className = 'tab';
         tab.dataset.tabId = tabId;
+        const tabIcon = this.getTabIcon(client);
         tab.innerHTML = `
-            <div class="tab-icon ${colorClass}">⚡</div>
+            <div class="tab-icon ${colorClass}" title="OS: ${client.detected_os || 'Unknown'}">${tabIcon}</div>
             <div class="tab-title">${client.host || client.label}</div>
             <button class="tab-theme" onclick="sshApp.showTerminalThemeSelector('${tabId}', event)" title="Change theme for this terminal">🎨</button>
             <button class="tab-close" onclick="sshApp.closeTab('${tabId}', event)">×</button>
@@ -1351,6 +1575,18 @@ Important: Each code can only be used once. Store these codes securely!
 
         ws.onopen = () => {
             term.write('Connected to SSH server\r\n');
+            
+            // Detect OS if not already detected
+            if (!client.detected_os || client.detected_os === 'unknown') {
+                this.detectClientOS(client.id).then((detectedOs) => {
+                    if (detectedOs && detectedOs !== 'unknown') {
+                        term.write(`\r\nDetected OS: ${detectedOs}\r\n`);
+                        client.detected_os = detectedOs; // Update local client object
+                    }
+                }).catch((error) => {
+                    console.error('OS detection failed:', error);
+                });
+            }
         };
 
         ws.onmessage = (event) => {
@@ -2019,6 +2255,7 @@ window.switchSettingsTab = (tabName) => sshApp.switchSettingsTab(tabName);
 window.toggleThemePanel = () => sshApp.toggleThemePanel();
 window.backToList = () => sshApp.backToList();
 window.deleteCurrentClient = () => sshApp.deleteCurrentClient();
+window.duplicateCurrentClient = () => sshApp.duplicateCurrentClient();
 
 // Settings functions
 window.toggleMFA = () => sshApp.toggleMFA();

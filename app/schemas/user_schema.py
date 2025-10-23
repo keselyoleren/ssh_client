@@ -110,6 +110,7 @@ class SSHClient(BaseModel):
     username: str
     password: Optional[str] = None
     private_key: Optional[str] = None
+    detected_os: Optional[str] = None
 
 # Trusted Device Schemas
 class TrustedDeviceCreate(BaseModel):
