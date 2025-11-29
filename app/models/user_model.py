@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -55,3 +55,4 @@ class SSHClient(Base):
     password = Column(String, nullable=True)
     private_key = Column(String, nullable=True)
     detected_os = Column(String, nullable=True)  # Operating system detected from SSH connection
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

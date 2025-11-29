@@ -35,9 +35,12 @@ class SSHClientApp {
             }
         };
 
+        this.tabTerminals = {}; // Map tabId -> [termId, termId]
+        this.activeTerminalId = null; // Track currently active/focused terminal
+
         this.iconColors = ['blue'];
         this.icons = ['🖥️'];
-        
+
         // OS-based icons mapping
         this.osIcons = {
             'linux': '🐧',        // Penguin for Linux
@@ -54,7 +57,7 @@ class SSHClientApp {
             'unknown': '🖥️',     // Generic computer
             'default': '⚡'       // Lightning for terminals (unchanged)
         };
-        
+
         this.themes = {
             'flexoki-dark': {
                 name: 'Flexoki Dark',
@@ -250,13 +253,13 @@ class SSHClientApp {
         } catch (error) {
             console.error('Logout API error:', error);
         }
-        
+
         // Clear tokens and user data
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
-        
+
         // Redirect to login page
         window.location.href = '/login';
     }
@@ -267,7 +270,7 @@ class SSHClientApp {
         try {
             const token = this.getToken();
             console.log('Token available:', !!token);
-            
+
             const response = await fetch('/auth/mfa/setup', {
                 method: 'POST',
                 headers: {
@@ -276,7 +279,7 @@ class SSHClientApp {
             });
 
             console.log('MFA setup response status:', response.status);
-            
+
             if (response.ok) {
                 this.mfaSetupData = await response.json();
                 console.log('MFA setup data received:', this.mfaSetupData);
@@ -298,7 +301,7 @@ class SSHClientApp {
             console.error('No MFA setup data available');
             return;
         }
-        
+
         console.log('MFA backup codes:', this.mfaSetupData.backup_codes);
         console.log('Number of backup codes:', this.mfaSetupData.backup_codes ? this.mfaSetupData.backup_codes.length : 0);
 
@@ -360,7 +363,7 @@ class SSHClientApp {
         // Setup event listeners
         const closeBtn = modal.querySelector('.close-btn');
         const cancelBtn = modal.querySelector('.cancel-btn');
-        
+
         const closeModal = () => {
             modal.classList.remove('active');
             setTimeout(() => {
@@ -369,7 +372,7 @@ class SSHClientApp {
                 }
             }, 300);
         };
-        
+
         closeBtn.addEventListener('click', closeModal);
         cancelBtn.addEventListener('click', closeModal);
 
@@ -389,7 +392,7 @@ class SSHClientApp {
 
         // Show modal with proper animation
         modal.classList.add('active');
-        
+
         // Focus first input
         setTimeout(() => {
             const firstInput = modal.querySelector('.code-input');
@@ -399,10 +402,10 @@ class SSHClientApp {
 
     async verifyMFASetup(e, modal) {
         e.preventDefault();
-        
+
         const codeInputs = modal.querySelectorAll('.code-input');
         const code = Array.from(codeInputs).map(input => input.value).join('');
-        
+
         if (code.length !== 6) {
             this.showToast('Please enter a valid 6-digit code', 'error');
             return;
@@ -480,11 +483,11 @@ class SSHClientApp {
                         'Authorization': `Bearer ${token}`
                     }
                 });
-                
+
                 if (response.ok) {
                     const mfaStatus = await response.json();
                     this.settingsData.mfa.enabled = mfaStatus.mfa_enabled;
-                    
+
                     // Update current user object
                     if (this.currentUser) {
                         this.currentUser.mfa_enabled = mfaStatus.mfa_enabled;
@@ -494,11 +497,11 @@ class SSHClientApp {
         } catch (error) {
             console.error('Failed to fetch MFA status:', error);
         }
-        
+
         const mfaToggle = document.getElementById('mfa-toggle');
         const mfaMethodsSection = document.getElementById('mfa-methods-section');
         const mfaStatusText = document.getElementById('mfa-status-text');
-        
+
         if (mfaToggle) {
             // Update toggle switch visual state
             if (this.settingsData.mfa.enabled) {
@@ -507,7 +510,7 @@ class SSHClientApp {
                 mfaToggle.classList.remove('active');
             }
         }
-        
+
         if (mfaStatusText) {
             // Update status text
             if (this.settingsData.mfa.enabled) {
@@ -518,7 +521,7 @@ class SSHClientApp {
                 mfaStatusText.style.color = '#f44336';
             }
         }
-        
+
         if (mfaMethodsSection) {
             // Show/hide MFA methods section based on MFA status
             if (this.settingsData.mfa.enabled) {
@@ -554,17 +557,17 @@ class SSHClientApp {
 
     downloadBackupCodes() {
         let backupCodes = [];
-        
+
         // Try to get backup codes from MFA setup data first
         if (this.mfaSetupData && this.mfaSetupData.backup_codes && this.mfaSetupData.backup_codes.length > 0) {
             backupCodes = this.mfaSetupData.backup_codes;
             console.log('Using backup codes from MFA setup data:', backupCodes);
-        } 
+        }
         // Fallback to settings data
         else if (this.settingsData && this.settingsData.mfa && this.settingsData.mfa.backupCodes && this.settingsData.mfa.backupCodes.length > 0) {
             backupCodes = this.settingsData.mfa.backupCodes;
             console.log('Using backup codes from settings data:', backupCodes);
-        } 
+        }
         else {
             console.error('No backup codes found');
             this.showToast('No backup codes available to download', 'error');
@@ -580,19 +583,19 @@ Important: Each code can only be used once. Store these codes securely!
 `;
         const codesText = backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n');
         const fullContent = header + codesText + '\n\n--- End of Backup Codes ---';
-        
+
         const blob = new Blob([fullContent], { type: 'text/plain' });
         const url = window.URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.href = url;
         a.download = `ssh-client-backup-codes-${timestamp}.txt`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        
+
         window.URL.revokeObjectURL(url);
-        
+
         this.showToast('Backup codes downloaded successfully!', 'success');
     }
 
@@ -714,6 +717,11 @@ Important: Each code can only be used once. Store these codes securely!
         this.gridViewBtn.addEventListener('click', () => this.setGridView());
         this.listViewBtn.addEventListener('click', () => this.setListView());
 
+        // Split View Controls
+        document.getElementById('split-horiz-btn').addEventListener('click', () => this.splitCurrentTerminal('horizontal'));
+        document.getElementById('split-vert-btn').addEventListener('click', () => this.splitCurrentTerminal('vertical'));
+        document.getElementById('new-tab-btn').addEventListener('click', () => this.backToList()); // "+" button goes to host list
+
         // Search functionality
         this.searchBox.addEventListener('input', (e) => this.handleSearch(e));
 
@@ -745,8 +753,12 @@ Important: Each code can only be used once. Store these codes securely!
 
         // Window resize handler
         window.addEventListener('resize', () => {
-            if (this.activeTabId && this.terminals[this.activeTabId]) {
-                this.terminals[this.activeTabId].fitAddon.fit();
+            if (this.activeTabId && this.tabTerminals[this.activeTabId]) {
+                this.tabTerminals[this.activeTabId].forEach(termId => {
+                    if (this.terminals[termId] && this.terminals[termId].fitAddon) {
+                        this.terminals[termId].fitAddon.fit();
+                    }
+                });
             }
         });
 
@@ -801,7 +813,7 @@ Important: Each code can only be used once. Store these codes securely!
     handleSearch(e) {
         const searchTerm = e.target.value.toLowerCase();
         const hostCards = this.clientList.querySelectorAll('.host-card');
-        
+
         hostCards.forEach(card => {
             const text = card.textContent.toLowerCase();
             if (text.includes(searchTerm)) {
@@ -825,11 +837,11 @@ Important: Each code can only be used once. Store these codes securely!
             item.className = `theme-item ${themeId === this.currentTheme ? 'active' : ''}`;
             item.setAttribute('data-theme-id', themeId);
             item.onclick = () => this.applyTheme(themeId);
-            
-            const previewLines = theme.colors.slice(0, 3).map((color, i) => 
+
+            const previewLines = theme.colors.slice(0, 3).map((color, i) =>
                 `<div class="theme-preview-line" style="background: ${color}; width: ${90 - i * 15}%;"></div>`
             ).join('');
-            
+
             item.innerHTML = `
                 <div class="theme-preview" style="background: ${theme.background};
 ">
@@ -840,39 +852,51 @@ Important: Each code can only be used once. Store these codes securely!
                     <div class="theme-stats">👥 ${theme.downloads}</div>
                 </div>
             `;
-            
             this.themeGrid.appendChild(item);
         });
     }
 
-    applyThemeToTerminal(tabId, themeId) {
-        // Apply theme to a specific terminal
-        if (this.terminals[tabId] && this.terminals[tabId].term) {
-            const theme = this.themes[themeId] || this.themes['hacker-blue'];
-            const newTheme = {
-                background: theme.background,
-                foreground: theme.foreground,
-                cursor: theme.cursor,
-                selection: theme.cursor + '40',
-                black: theme.colors[0],
-                red: theme.colors[1],
-                green: theme.colors[2],
-                yellow: theme.colors[3],
-                blue: theme.colors[4],
-                magenta: theme.colors[5],
-                cyan: theme.colors[6],
-                white: theme.colors[7]
-            };
-            
-            // Set the new theme
-            this.terminals[tabId].term.options.theme = newTheme;
-            this.terminals[tabId].theme = themeId;
-            this.terminalThemes[tabId] = themeId;
-            
-            // Force refresh of the terminal to apply theme changes
-            if (this.terminals[tabId].term.element) {
-                this.terminals[tabId].term.refresh(0, this.terminals[tabId].term.rows - 1);
+    applyThemeToTerminal(targetId, themeId) {
+        // Check if targetId is a tabId (apply to all in tab) or termId
+        let termIds = [];
+        if (this.tabTerminals[targetId]) {
+            termIds = this.tabTerminals[targetId];
+        } else if (this.terminals[targetId]) {
+            termIds = [targetId];
+        }
+
+        const theme = this.themes[themeId] || this.themes['hacker-blue'];
+        const newTheme = {
+            background: theme.background,
+            foreground: theme.foreground,
+            cursor: theme.cursor,
+            selection: theme.cursor + '40',
+            black: theme.colors[0],
+            red: theme.colors[1],
+            green: theme.colors[2],
+            yellow: theme.colors[3],
+            blue: theme.colors[4],
+            magenta: theme.colors[5],
+            cyan: theme.colors[6],
+            white: theme.colors[7]
+        };
+
+        termIds.forEach(termId => {
+            if (this.terminals[termId] && this.terminals[termId].term) {
+                // Set the new theme
+                this.terminals[termId].term.options.theme = newTheme;
+                this.terminals[termId].theme = themeId;
+
+                // Force refresh
+                if (this.terminals[termId].term.element) {
+                    this.terminals[termId].term.refresh(0, this.terminals[termId].term.rows - 1);
+                }
             }
+        });
+
+        // If it was a tabId, update the stored theme preference for that tab
+        if (this.tabTerminals[targetId]) {
+            this.terminalThemes[targetId] = themeId;
         }
     }
 
@@ -884,13 +908,13 @@ Important: Each code can only be used once. Store these codes securely!
         } else {
             // Apply globally (fallback behavior)
             this.currentTheme = themeId;
-            Object.keys(this.terminals).forEach(tabId => {
-                this.applyThemeToTerminal(tabId, themeId);
+            Object.keys(this.terminals).forEach(termId => {
+                this.applyThemeToTerminal(termId, themeId);
             });
         }
-        
+
         this.renderThemes();
-        
+
         // Save the global theme preference (used for new terminals)
         this.currentTheme = themeId;
         this.settingsData.terminal.theme = themeId;
@@ -915,7 +939,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.submitBtn.textContent = 'Update';
         this.deleteBtn.style.display = 'block';
         this.duplicateBtn.style.display = 'block';
-        
+
         document.getElementById('label').value = client.label;
         document.getElementById('host').value = client.host;
         document.getElementById('port').value = client.port;
@@ -923,7 +947,7 @@ Important: Each code can only be used once. Store these codes securely!
         document.getElementById('password').value = client.password || '';
         document.getElementById('private_key').value = client.private_key || '';
         this.clientIdInput.value = client.id;
-        
+
         this.createModal.classList.add('active');
     }
 
@@ -940,7 +964,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.settingsModal.classList.add('active');
         // Clone themes to settings modal
         document.getElementById('settings-theme-grid').innerHTML = document.getElementById('theme-grid').innerHTML;
-        
+
         // Re-attach event handlers for cloned theme items
         const settingsThemeItems = document.querySelectorAll('#settings-theme-grid .theme-item');
         settingsThemeItems.forEach(item => {
@@ -949,7 +973,7 @@ Important: Each code can only be used once. Store these codes securely!
                 item.onclick = () => this.applyTheme(themeId);
             }
         });
-        
+
         // Refresh MFA settings when opening settings modal
         await this.updateMFASettings();
     }
@@ -962,7 +986,7 @@ Important: Each code can only be used once. Store these codes securely!
         // Remove active class from all tabs and contents
         document.querySelectorAll('.settings-tab').forEach(tab => tab.classList.remove('active'));
         document.querySelectorAll('.settings-content').forEach(content => content.classList.remove('active'));
-        
+
         // Add active class to clicked tab and corresponding content
         event.target.classList.add('active');
         document.getElementById(tabName + '-settings').classList.add('active');
@@ -993,28 +1017,28 @@ Important: Each code can only be used once. Store these codes securely!
 
     async handleEmailChange(e) {
         e.preventDefault();
-        
+
         const currentPassword = document.getElementById('current-password-email').value;
         const newEmail = document.getElementById('new-email').value;
         const confirmEmail = document.getElementById('confirm-email').value;
-        
+
         if (!currentPassword || !newEmail || !confirmEmail) {
             this.showToast('Please fill in all fields', 'error');
             return;
         }
-        
+
         if (newEmail !== confirmEmail) {
             this.showToast('Email addresses do not match', 'error');
             return;
         }
-        
+
         // Email validation
         const emailRegex = /^[^Us@]+U@[U^Us@]+U.[U^Us@]+$/;
         if (!emailRegex.test(newEmail)) {
             this.showToast('Please enter a valid email address', 'error');
             return;
         }
-        
+
         try {
             const token = this.getToken();
             const response = await fetch('/auth/change-email', {
@@ -1035,7 +1059,7 @@ Important: Each code can only be used once. Store these codes securely!
                 const user = JSON.parse(localStorage.getItem('user') || '{}');
                 user.email = newEmail;
                 localStorage.setItem('user', JSON.stringify(user));
-                
+
                 document.getElementById('currentEmailDisplay').textContent = newEmail;
                 this.showToast('Email updated successfully!', 'success');
                 this.closeChangeEmailModal();
@@ -1055,16 +1079,16 @@ Important: Each code can only be used once. Store these codes securely!
         console.log('Event target:', e.target);
         console.log('Form element:', e.target.tagName);
         e.preventDefault();
-        
+
         const currentPassword = document.getElementById('current-password-change').value;
         const newPassword = document.getElementById('new-password-change').value;
         const confirmPassword = document.getElementById('confirm-password-change').value;
-        
+
         console.log('=== PASSWORD VALUES ===');
         console.log('Current password length:', currentPassword.length);
         console.log('New password length:', newPassword.length);
         console.log('Confirm password length:', confirmPassword.length);
-        
+
         console.log('=== VALIDATION CHECKS ===');
         if (!currentPassword || !newPassword || !confirmPassword) {
             console.log('VALIDATION FAILED: Empty fields');
@@ -1072,42 +1096,42 @@ Important: Each code can only be used once. Store these codes securely!
             return;
         }
         console.log('✓ All fields filled');
-        
+
         if (newPassword !== confirmPassword) {
             console.log('VALIDATION FAILED: Passwords do not match');
             this.showToast('New passwords do not match', 'error');
             return;
         }
         console.log('✓ Passwords match');
-        
+
         if (currentPassword === newPassword) {
             console.log('VALIDATION FAILED: Same password');
             this.showToast('New password must be different from current password', 'error');
             return;
         }
         console.log('✓ Passwords are different');
-        
+
         const { strength, checks } = this.checkPasswordStrength(newPassword);
         const passedChecks = Object.values(checks).filter(Boolean).length;
         console.log('Password strength checks passed:', passedChecks, 'out of 5');
-        
+
         if (passedChecks < 4) {
             console.log('VALIDATION FAILED: Password strength insufficient');
             this.showToast('Password does not meet security requirements', 'error');
             return;
         }
         console.log('✓ Password strength OK');
-        
+
         console.log('=== ALL VALIDATIONS PASSED - PROCEEDING TO API CALL ===');
-        
+
         try {
             const token = this.getToken();
-            
+
             console.log('=== TOKEN CHECK ===');
             console.log('Token exists:', !!token);
             console.log('Token length:', token ? token.length : 0);
             console.log('Token preview:', token ? token.substring(0, 50) + '...' : 'null');
-            
+
             if (!token) {
                 console.log('ERROR: No token found - redirecting to login');
                 this.showToast('Authentication required. Please log in again.', 'error');
@@ -1143,7 +1167,7 @@ Important: Each code can only be used once. Store these codes securely!
 
             if (response.ok) {
                 this.showToast('Password changed successfully! You will be signed out from all devices. Please log in with your new password.', 'success');
-                
+
                 // Show additional guidance
                 setTimeout(() => {
                     if (confirm('Your password has been changed successfully!\n\nYou will now be signed out for security reasons.\n\nPlease log in again using your NEW password.\n\nClick OK to continue to the login page.')) {
@@ -1174,7 +1198,7 @@ Important: Each code can only be used once. Store these codes securely!
 
     async deleteCurrentClient() {
         if (!this.editingClientId) return;
-        
+
         if (!confirm('Are you sure you want to delete this SSH client?')) {
             return;
         }
@@ -1191,7 +1215,7 @@ Important: Each code can only be used once. Store these codes securely!
 
     duplicateCurrentClient() {
         if (!this.editingClientId) return;
-        
+
         // Get current form values
         const label = document.getElementById('label').value;
         const host = document.getElementById('host').value;
@@ -1199,13 +1223,13 @@ Important: Each code can only be used once. Store these codes securely!
         const username = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         const privateKey = document.getElementById('private_key').value;
-        
+
         // Close current modal
         this.closeCreateModal();
-        
+
         // Open create modal with duplicated values
         this.openCreateModal();
-        
+
         // Set form values to duplicated data with modified label
         document.getElementById('label').value = `${label} (Copy)`;
         document.getElementById('host').value = host;
@@ -1213,7 +1237,7 @@ Important: Each code can only be used once. Store these codes securely!
         document.getElementById('username').value = username;
         document.getElementById('password').value = password;
         document.getElementById('private_key').value = privateKey;
-        
+
         // Focus on the label field so user can modify the name
         document.getElementById('label').focus();
         document.getElementById('label').select();
@@ -1243,21 +1267,21 @@ Important: Each code can only be used once. Store these codes securely!
                 method: 'POST'
             });
             const data = await response.json();
-            
+
             if (data.detected_os && data.detected_os !== 'unknown') {
                 // Update the client in our local array
                 const clientIndex = this.clients.findIndex(c => c.id === clientId);
                 if (clientIndex !== -1) {
                     this.clients[clientIndex].detected_os = data.detected_os;
                 }
-                
+
                 // Refresh the client list to show new icon
                 this.renderClients();
-                
+
                 // Update any open tabs for this client
                 this.updateTabIcon(clientId, data.detected_os);
             }
-            
+
             return data.detected_os;
         } catch (error) {
             console.error('Failed to detect OS:', error);
@@ -1281,10 +1305,10 @@ Important: Each code can only be used once. Store these codes securely!
         this.clients.forEach((client, index) => {
             const card = document.createElement('div');
             card.className = 'host-card';
-            
+
             const colorClass = this.iconColors[index % this.iconColors.length];
             const icon = this.getClientIcon(client);
-            
+
             card.innerHTML = `
                 <div class="host-icon ${colorClass}" title="OS: ${client.detected_os || 'Unknown'}">${icon}</div>
                 <div class="host-info">
@@ -1297,26 +1321,26 @@ Important: Each code can only be used once. Store these codes securely!
                     </a>
                 </div>
             `;
-            
+
             // Click on card to connect
             card.addEventListener('click', (e) => {
                 if (!e.target.closest('.host-actions')) {
                     this.openTerminal(client);
                 }
             });
-            
+
             // Edit button
             card.querySelector('.edit').addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.openEditModal(client);
             });
-            
+
             // Right-click context menu for OS detection
             card.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
                 this.showClientContextMenu(e, client);
             });
-            
+
             this.clientList.appendChild(card);
         });
     }
@@ -1335,7 +1359,7 @@ Important: Each code can only be used once. Store these codes securely!
         menu.style.left = `${event.clientX}px`;
         menu.style.top = `${event.clientY}px`;
         menu.style.zIndex = '10000';
-        
+
         menu.innerHTML = `
             <div class="context-menu-item" data-action="detect-os">
                 🔍 Detect OS
@@ -1375,9 +1399,9 @@ Important: Each code can only be used once. Store these codes securely!
             if (clientCard) {
                 const originalIcon = clientCard.innerHTML;
                 clientCard.innerHTML = '⏳';
-                
+
                 const detectedOs = await this.detectClientOS(client.id);
-                
+
                 // Show success message
                 if (detectedOs && detectedOs !== 'unknown') {
                     this.showNotification(`OS detected: ${detectedOs}`, 'success');
@@ -1441,11 +1465,12 @@ Important: Each code can only be used once. Store these codes securely!
     createTab(client) {
         const tabId = `tab-${client.id}`;
         const colorClass = this.iconColors[Math.floor(Math.random() * this.iconColors.length)];
-        
+
         // Create tab
         const tab = document.createElement('div');
         tab.className = 'tab';
         tab.dataset.tabId = tabId;
+        tab.draggable = true; // Enable dragging
         const tabIcon = this.getTabIcon(client);
         tab.innerHTML = `
             <div class="tab-icon ${colorClass}" title="OS: ${client.detected_os || 'Unknown'}">${tabIcon}</div>
@@ -1453,12 +1478,23 @@ Important: Each code can only be used once. Store these codes securely!
             <button class="tab-theme" onclick="sshApp.showTerminalThemeSelector('${tabId}', event)" title="Change theme for this terminal">🎨</button>
             <button class="tab-close" onclick="sshApp.closeTab('${tabId}', event)">×</button>
         `;
+
+        // Drag events for tab
+        tab.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                type: 'tab-drag',
+                tabId: tabId,
+                client: client
+            }));
+            e.dataTransfer.effectAllowed = 'copyMove';
+        });
+
         tab.onclick = (e) => {
-            if (!e.target.classList.contains('tab-close')) {
+            if (!e.target.classList.contains('tab-close') && !e.target.classList.contains('tab-theme')) {
                 this.switchTab(tabId);
             }
         };
-        
+
         // Insert tab after back button
         const backBtn = this.tabBar.querySelector('.back-btn');
         if (backBtn && backBtn.nextSibling) {
@@ -1471,10 +1507,598 @@ Important: Each code can only be used once. Store these codes securely!
         const wrapper = document.createElement('div');
         wrapper.className = 'terminal-wrapper';
         wrapper.dataset.tabId = tabId;
-        wrapper.innerHTML = `<div class="terminal-content" id="${tabId}"></div>`;
+        // wrapper.innerHTML = `<div class="terminal-content" id="${tabId}"></div>`; // Removed, will be added by createTerminalInstance
         this.terminalContainer.appendChild(wrapper);
 
+        this.tabTerminals[tabId] = [];
+
         return tabId;
+    }
+
+    generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
+    async splitCurrentTerminal(direction) {
+        if (!this.activeTabId) return;
+
+        // Use the active terminal or the first one in the tab
+        let targetTermId = this.activeTerminalId;
+        if (!targetTermId || !this.tabTerminals[this.activeTabId].includes(targetTermId)) {
+            targetTermId = this.tabTerminals[this.activeTabId][0];
+        }
+
+        if (!targetTermId) return; // No terminal to split
+
+        const targetTermObj = this.terminals[targetTermId];
+        const targetElement = document.getElementById(`terminal-${targetTermId}`);
+
+        if (!targetElement) return;
+
+        const parent = targetElement.parentElement;
+
+        // Create split container
+        const splitContainer = document.createElement('div');
+        splitContainer.className = `split ${direction === 'horizontal' ? 'split-horizontal' : 'split-vertical'}`;
+        splitContainer.style.display = 'flex';
+        splitContainer.style.flexDirection = direction === 'horizontal' ? 'row' : 'column';
+        splitContainer.style.width = '100%';
+        splitContainer.style.height = '100%';
+
+        // Replace target element with split container
+        parent.replaceChild(splitContainer, targetElement);
+
+        // Create two slots
+        const slot1 = document.createElement('div');
+        slot1.className = 'split-slot';
+        slot1.style.width = '100%';
+        slot1.style.height = '100%';
+
+        const slot2 = document.createElement('div');
+        slot2.className = 'split-slot';
+        slot2.style.width = '100%';
+        slot2.style.height = '100%';
+
+        splitContainer.appendChild(slot1);
+        splitContainer.appendChild(slot2);
+
+        // Move original terminal to slot 1
+        slot1.appendChild(targetElement);
+
+        // Create new terminal in slot 2
+        // For now, duplicate the current client
+        // Find the client associated with the target terminal
+        // We need to store client info in terminal object
+        const client = targetTermObj.client;
+
+        if (client) {
+            await this.createTerminalInstance(slot2, client, this.activeTabId);
+        }
+
+        // Initialize Split.js
+        Split([slot1, slot2], {
+            sizes: [50, 50],
+            minSize: 100,
+            gutterSize: 5,
+            direction: direction === 'horizontal' ? 'horizontal' : 'vertical',
+            onDragEnd: () => {
+                // Resize all terminals in this tab
+                this.tabTerminals[this.activeTabId].forEach(termId => {
+                    if (this.terminals[termId] && this.terminals[termId].fitAddon) {
+                        this.terminals[termId].fitAddon.fit();
+                    }
+                });
+            }
+        });
+
+        // Resize original terminal
+        if (targetTermObj.fitAddon) {
+            setTimeout(() => targetTermObj.fitAddon.fit(), 100);
+        }
+    }
+
+    async createTerminalInstance(container, client, tabId) {
+        const termId = this.generateUUID();
+        const terminalDiv = document.createElement('div');
+        terminalDiv.className = 'terminal-content';
+        terminalDiv.id = `terminal-${termId}`;
+        terminalDiv.style.width = '100%';
+        terminalDiv.style.height = '100%';
+
+        terminalDiv.dataset.tabId = tabId; // Store tabId in dataset for dynamic access
+
+        // Click to activate
+        terminalDiv.addEventListener('mousedown', () => {
+            this.setActiveTerminal(termId);
+        });
+
+        // Add Close Button
+        const header = document.createElement('div');
+        header.className = 'terminal-header';
+        header.innerHTML = `<button class="close-term-btn" title="Close Pane">×</button>`;
+        header.querySelector('.close-term-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Use dataset.tabId to get current tabId
+            const currentTabId = terminalDiv.dataset.tabId;
+            this.closeTerminal(termId, currentTabId);
+        });
+        terminalDiv.appendChild(header);
+
+        // Add Drop Overlay
+        const dropOverlay = document.createElement('div');
+        dropOverlay.className = 'drop-overlay';
+        dropOverlay.textContent = 'Drop to Split';
+        terminalDiv.appendChild(dropOverlay);
+
+        // Drag and Drop Handlers
+        terminalDiv.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropOverlay.classList.add('active');
+            e.dataTransfer.dropEffect = 'copy';
+
+            // Calculate direction for visual feedback
+            const rect = terminalDiv.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const w = rect.width;
+            const h = rect.height;
+
+            // Remove all split classes
+            dropOverlay.classList.remove('split-left', 'split-right', 'split-top', 'split-bottom');
+
+            // Determine zone
+            // Top 25% -> Top
+            // Bottom 25% -> Bottom
+            // Left 25% -> Left
+            // Right 25% -> Right
+            // Center -> Horizontal Right (default) or closest edge
+
+            // Let's use a quadrant approach + center check?
+            // Or just simple edge proximity.
+
+            const relX = x / w;
+            const relY = y / h;
+
+            if (relY < 0.25) dropOverlay.classList.add('split-top');
+            else if (relY > 0.75) dropOverlay.classList.add('split-bottom');
+            else if (relX < 0.25) dropOverlay.classList.add('split-left');
+            else dropOverlay.classList.add('split-right'); // Default to right for center/right
+        });
+
+        terminalDiv.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropOverlay.classList.remove('active', 'split-left', 'split-right', 'split-top', 'split-bottom');
+        });
+
+        terminalDiv.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropOverlay.classList.remove('active');
+            // Use dataset.tabId to get current tabId
+            const currentTabId = terminalDiv.dataset.tabId;
+            this.handleTabDrop(e, termId, currentTabId);
+        });
+
+        container.appendChild(terminalDiv);
+
+        // Get theme
+        const terminalThemeId = this.terminalThemes[tabId] || this.currentTheme || 'hacker-blue';
+        const theme = this.themes[terminalThemeId] || this.themes['hacker-blue'];
+
+        const term = new Terminal({
+            theme: {
+                background: theme.background,
+                foreground: theme.foreground,
+                cursor: theme.cursor,
+                selection: theme.cursor + '40',
+                black: theme.colors[0],
+                red: theme.colors[1],
+                green: theme.colors[2],
+                yellow: theme.colors[3],
+                blue: theme.colors[4],
+                magenta: theme.colors[5],
+                cyan: theme.colors[6],
+                white: theme.colors[7]
+            },
+            fontSize: 14,
+            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            cursorBlink: true
+        });
+
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(terminalDiv);
+
+        setTimeout(() => fitAddon.fit(), 100);
+
+        const ws = new WebSocket(`ws://localhost:8000/ws/${client.id}`);
+
+        ws.onopen = () => {
+            term.write('Connected to SSH server\\r\\n');
+            if (!client.detected_os || client.detected_os === 'unknown') {
+                this.detectClientOS(client.id).then((detectedOs) => {
+                    if (detectedOs && detectedOs !== 'unknown') {
+                        term.write(`\\r\\nDetected OS: ${detectedOs}\\r\\n`);
+                        client.detected_os = detectedOs;
+                    }
+                }).catch(console.error);
+            }
+        };
+
+        ws.onmessage = (event) => term.write(event.data);
+        ws.onerror = (error) => term.write(`Error: ${error.message}\\r\\n`);
+        ws.onclose = (event) => term.write(`\\r\\nConnection closed: ${event.reason}\\r\\n`);
+
+        term.onData((data) => {
+            if (ws.readyState === WebSocket.OPEN) ws.send(data);
+        });
+
+        // Store terminal
+        this.terminals[termId] = { term, fitAddon, ws, theme: terminalThemeId, client: client };
+        this.tabTerminals[tabId].push(termId);
+
+        // Set as active
+        this.setActiveTerminal(termId);
+
+        return termId;
+    }
+
+    closeTerminal(termId, tabId) {
+        // 1. Clean up resources
+        if (this.terminals[termId]) {
+            if (this.terminals[termId].ws) {
+                this.terminals[termId].ws.close();
+            }
+            delete this.terminals[termId];
+        }
+
+        // 2. Remove from tabTerminals list
+        if (this.tabTerminals[tabId]) {
+            this.tabTerminals[tabId] = this.tabTerminals[tabId].filter(id => id !== termId);
+        }
+
+        // 3. Remove DOM element and handle layout
+        const termElement = document.getElementById(`terminal-${termId}`);
+        if (termElement) {
+            // Check if it's inside a split-slot
+            const parentSlot = termElement.parentElement;
+            if (parentSlot && parentSlot.classList.contains('split-slot')) {
+                const splitContainer = parentSlot.parentElement;
+                // If it's in a split, we need to remove the split container and promote the sibling
+                const siblingSlot = splitContainer.children[0] === parentSlot ? splitContainer.children[1] : splitContainer.children[0];
+                const grandParent = splitContainer.parentElement;
+
+                // Move sibling's content to grandparent
+                while (siblingSlot.firstChild) {
+                    grandParent.insertBefore(siblingSlot.firstChild, splitContainer);
+                }
+
+                // Remove the split container
+                splitContainer.remove();
+
+                // Re-fit remaining terminals
+                if (this.tabTerminals[tabId]) {
+                    this.tabTerminals[tabId].forEach(tid => {
+                        if (this.terminals[tid] && this.terminals[tid].fitAddon) {
+                            setTimeout(() => this.terminals[tid].fitAddon.fit(), 100);
+                        }
+                    });
+                }
+            } else {
+                // It's the root terminal
+                termElement.remove();
+            }
+        }
+
+        // 4. If no terminals left in tab, close the tab
+        if (!this.tabTerminals[tabId] || this.tabTerminals[tabId].length === 0) {
+            this.closeTab(tabId, { stopPropagation: () => { } });
+        } else {
+            // Set another terminal as active if needed
+            if (this.activeTerminalId === termId) {
+                const nextTermId = this.tabTerminals[tabId][0];
+                if (nextTermId) this.setActiveTerminal(nextTermId);
+            }
+        }
+    }
+
+    async handleTabDrop(e, targetTermId, targetTabId) {
+        try {
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (data.type !== 'tab-drag' || !data.client) return;
+
+            const sourceTabId = data.tabId;
+
+            // Don't do anything if dropping on itself
+            if (sourceTabId === targetTabId) return;
+
+            // Determine split direction based on drop position
+            const targetRect = e.target.getBoundingClientRect();
+            const relX = e.clientX - targetRect.left;
+            const relY = e.clientY - targetRect.top;
+            const width = targetRect.width;
+            const height = targetRect.height;
+
+            const rX = relX / width;
+            const rY = relY / height;
+
+            let direction = 'horizontal';
+            let insertBefore = false;
+
+            if (rY < 0.25) {
+                direction = 'vertical';
+                insertBefore = true;
+            } else if (rY > 0.75) {
+                direction = 'vertical';
+                insertBefore = false;
+            } else if (rX < 0.25) {
+                direction = 'horizontal';
+                insertBefore = true;
+            } else {
+                direction = 'horizontal';
+                insertBefore = false;
+            }
+
+            // Perform the move
+            await this.moveTabToSplit(sourceTabId, targetTermId, targetTabId, direction, insertBefore);
+
+        } catch (err) {
+            console.error('Drop handling failed:', err);
+        }
+    }
+
+    async moveTabToSplit(sourceTabId, targetTermId, targetTabId, direction, insertBefore = false) {
+        // 1. Get the terminal(s) from the source tab
+        // For simplicity, if the source tab has multiple terminals (already split), 
+        // we might just take the first one or active one. 
+        // Ideally, we should move the whole tree, but let's start with moving the active terminal of source tab.
+
+        // Find active terminal in source tab or just the first one
+        let sourceTermId = null;
+        if (this.tabTerminals[sourceTabId] && this.tabTerminals[sourceTabId].length > 0) {
+            // Try to find if one is active
+            // But activeTerminalId might be in the target tab now.
+            // So just take the first one for now.
+            sourceTermId = this.tabTerminals[sourceTabId][0];
+        }
+
+        if (!sourceTermId) return;
+
+        const sourceTermElement = document.getElementById(`terminal-${sourceTermId}`);
+        const targetElement = document.getElementById(`terminal-${targetTermId}`);
+
+        if (!sourceTermElement || !targetElement) return;
+
+        // 2. Detach from source tab
+        // Remove from source tab's list
+        this.tabTerminals[sourceTabId] = this.tabTerminals[sourceTabId].filter(id => id !== sourceTermId);
+
+        // If source tab is now empty, close it (remove UI)
+        if (this.tabTerminals[sourceTabId].length === 0) {
+            const sourceTabBtn = document.querySelector(`.tab[data-tab-id="${sourceTabId}"]`);
+            if (sourceTabBtn) sourceTabBtn.remove();
+            const sourceWrapper = document.querySelector(`.terminal-wrapper[data-tab-id="${sourceTabId}"]`);
+            if (sourceWrapper) sourceWrapper.remove();
+            delete this.tabTerminals[sourceTabId];
+            delete this.terminalThemes[sourceTabId];
+        }
+
+        // 3. Add to target tab's list
+        this.tabTerminals[targetTabId].push(sourceTermId);
+
+        // 4. Create Split Structure in Target
+        const parent = targetElement.parentElement;
+
+        // Create split container
+        const splitContainer = document.createElement('div');
+        splitContainer.className = `split ${direction === 'horizontal' ? 'split-horizontal' : 'split-vertical'}`;
+        splitContainer.style.display = 'flex';
+        splitContainer.style.flexDirection = direction === 'horizontal' ? 'row' : 'column';
+        splitContainer.style.width = '100%';
+        splitContainer.style.height = '100%';
+
+        // Replace target element with split container
+        parent.replaceChild(splitContainer, targetElement);
+
+        // Create slots
+        const slot1 = document.createElement('div');
+        slot1.className = 'split-slot';
+        slot1.style.width = '100%';
+        slot1.style.height = '100%';
+
+        const slot2 = document.createElement('div');
+        slot2.className = 'split-slot';
+        slot2.style.width = '100%';
+        slot2.style.height = '100%';
+
+        splitContainer.appendChild(slot1);
+        splitContainer.appendChild(slot2);
+
+        if (insertBefore) {
+            // Source in Slot 1, Target in Slot 2
+            slot1.appendChild(sourceTermElement);
+            slot2.appendChild(targetElement);
+        } else {
+            // Target in Slot 1, Source in Slot 2
+            slot1.appendChild(targetElement);
+            slot2.appendChild(sourceTermElement);
+        }
+
+        // Update Close Button behavior for the moved terminal
+        // We need to update the onclick handler because it needs the NEW tabId
+        const closeBtn = sourceTermElement.querySelector('.close-term-btn');
+        if (closeBtn) {
+            // Clone and replace to strip old event listeners
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+
+            newCloseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.closeTerminal(sourceTermId, targetTabId);
+            });
+        }
+
+        // Update drop handler for the moved terminal to point to new tabId
+        // We need to re-attach the drop listener with new tabId
+        // Or we can just update the handleTabDrop to look up the current tabId of the termId?
+        // But handleTabDrop takes targetTabId as arg.
+        // Let's re-attach listeners.
+
+        // Actually, easiest is to just update the closure variables? No, can't do that easily.
+        // Let's just re-run the event listener attachment logic for this terminal.
+        // But we can't easily remove the old anonymous functions.
+        // So we might have "ghost" listeners if we are not careful.
+        // A better approach: handleTabDrop should find the tabId dynamically from the DOM or state.
+        // But for now, let's just replace the element to clear listeners? No, that kills the terminal state (canvas etc).
+
+        // Let's just accept that the old listeners might fire with old tabId?
+        // If they fire with old tabId, closeTerminal will try to remove from old tabId (which is already empty/deleted).
+        // So it might be harmless or throw error.
+
+        // Correct fix: Update the `drop` listener.
+        // Since we can't remove specific anonymous listeners, we might need to rely on looking up the tabId
+        // dynamically inside the handler, instead of closing over it.
+        // But `createTerminalInstance` closes over `tabId`.
+
+        // Let's patch `createTerminalInstance` in next iteration to look up tabId?
+        // For now, let's try to update the listeners by cloning the drop overlay?
+        // The drop listener is on `terminalDiv`.
+
+        // Let's just leave it for now and see if it works. 
+        // The `closeTerminal` logic checks `this.tabTerminals[tabId]`. If tabId is old, it won't find it there.
+        // So it won't remove it. But it might try to remove DOM element.
+
+        // CRITICAL: We MUST update the close handler, which we did above.
+        // For drop handler: if we drop ONTO the moved terminal, it will use old tabId.
+        // This means it will try to add the NEW dropped tab to the OLD (deleted) tab.
+        // This is bad.
+
+        // Quick fix: Re-implement the drop listener on the moved element.
+        // We can use `sourceTermElement.ondrop = ...` to override? 
+        // But we used `addEventListener`.
+
+        // Let's try to remove all listeners by cloning the node? 
+        // NO! Cloning `sourceTermElement` will kill the xterm instance inside it.
+
+        // Alternative: Store `tabId` on the DOM element dataset and read it in the handler.
+        sourceTermElement.dataset.tabId = targetTabId;
+        targetElement.dataset.tabId = targetTabId; // Ensure target has it too
+
+        // We need to modify `createTerminalInstance` to use `dataset.tabId` instead of `tabId` arg.
+        // But we can't easily change `createTerminalInstance`'s past executions.
+
+        // Okay, we will modify `createTerminalInstance` in this same tool call to use `dataset.tabId`.
+        // And we will update `dataset.tabId` here.
+
+        // 5. Initialize Split.js
+        Split([slot1, slot2], {
+            sizes: [50, 50],
+            minSize: 100,
+            gutterSize: 5,
+            direction: direction === 'horizontal' ? 'horizontal' : 'vertical',
+            onDragEnd: () => {
+                this.tabTerminals[targetTabId].forEach(termId => {
+                    if (this.terminals[termId] && this.terminals[termId].fitAddon) {
+                        this.terminals[termId].fitAddon.fit();
+                    }
+                });
+            }
+        });
+
+        // 6. Resize terminals
+        if (this.terminals[sourceTermId].fitAddon) setTimeout(() => this.terminals[sourceTermId].fitAddon.fit(), 100);
+        if (this.terminals[targetTermId].fitAddon) setTimeout(() => this.terminals[targetTermId].fitAddon.fit(), 100);
+
+        // 7. Set active
+        this.setActiveTerminal(sourceTermId);
+        this.activeTabId = targetTabId;
+    }
+
+    // Re-implementing splitCurrentTerminal to support passing a specific client
+    async splitCurrentTerminal(direction, clientToConnect = null) {
+        if (!this.activeTabId) return;
+
+        let targetTermId = this.activeTerminalId;
+        if (!targetTermId || !this.tabTerminals[this.activeTabId].includes(targetTermId)) {
+            targetTermId = this.tabTerminals[this.activeTabId][0];
+        }
+
+        if (!targetTermId) return;
+
+        const targetTermObj = this.terminals[targetTermId];
+        const targetElement = document.getElementById(`terminal-${targetTermId}`);
+
+        if (!targetElement) return;
+
+        const parent = targetElement.parentElement;
+
+        const splitContainer = document.createElement('div');
+        splitContainer.className = `split ${direction === 'horizontal' ? 'split-horizontal' : 'split-vertical'}`;
+        splitContainer.style.display = 'flex';
+        splitContainer.style.flexDirection = direction === 'horizontal' ? 'row' : 'column';
+        splitContainer.style.width = '100%';
+        splitContainer.style.height = '100%';
+
+        parent.replaceChild(splitContainer, targetElement);
+
+        const slot1 = document.createElement('div');
+        slot1.className = 'split-slot';
+        slot1.style.width = '100%';
+        slot1.style.height = '100%';
+
+        const slot2 = document.createElement('div');
+        slot2.className = 'split-slot';
+        slot2.style.width = '100%';
+        slot2.style.height = '100%';
+
+        splitContainer.appendChild(slot1);
+        splitContainer.appendChild(slot2);
+
+        slot1.appendChild(targetElement);
+
+        // Use provided client or duplicate current
+        const client = clientToConnect || targetTermObj.client;
+
+        if (client) {
+            await this.createTerminalInstance(slot2, client, this.activeTabId);
+        }
+
+        Split([slot1, slot2], {
+            sizes: [50, 50],
+            minSize: 100,
+            gutterSize: 5,
+            direction: direction === 'horizontal' ? 'horizontal' : 'vertical',
+            onDragEnd: () => {
+                this.tabTerminals[this.activeTabId].forEach(termId => {
+                    if (this.terminals[termId] && this.terminals[termId].fitAddon) {
+                        this.terminals[termId].fitAddon.fit();
+                    }
+                });
+            }
+        });
+
+        if (targetTermObj.fitAddon) {
+            setTimeout(() => targetTermObj.fitAddon.fit(), 100);
+        }
+    }
+
+    setActiveTerminal(termId) {
+        this.activeTerminalId = termId;
+
+        // Update visual state
+        document.querySelectorAll('.terminal-content').forEach(el => {
+            el.classList.remove('active-term');
+        });
+
+        const activeEl = document.getElementById(`terminal-${termId}`);
+        if (activeEl) {
+            activeEl.classList.add('active-term');
+        }
     }
 
     switchTab(tabId) {
@@ -1489,23 +2113,32 @@ Important: Each code can only be used once. Store these codes securely!
         this.activeTabId = tabId;
 
         // Fit terminal
-        if (this.terminals[tabId] && this.terminals[tabId].fitAddon) {
-            setTimeout(() => this.terminals[tabId].fitAddon.fit(), 100);
+        if (this.tabTerminals[tabId]) {
+            this.tabTerminals[tabId].forEach(termId => {
+                if (this.terminals[termId] && this.terminals[termId].fitAddon) {
+                    setTimeout(() => this.terminals[termId].fitAddon.fit(), 100);
+                }
+            });
         }
     }
 
     closeTab(tabId, event) {
         event.stopPropagation();
-        
+
         // Close WebSocket
-        if (this.terminals[tabId] && this.terminals[tabId].ws) {
-            this.terminals[tabId].ws.close();
+        if (this.tabTerminals[tabId]) {
+            this.tabTerminals[tabId].forEach(termId => {
+                if (this.terminals[termId] && this.terminals[termId].ws) {
+                    this.terminals[termId].ws.close();
+                }
+                delete this.terminals[termId];
+            });
+            delete this.tabTerminals[tabId];
         }
 
         // Remove tab and terminal
         document.querySelector(`.tab[data-tab-id="${tabId}"]`).remove();
         document.querySelector(`.terminal-wrapper[data-tab-id="${tabId}"]`).remove();
-        delete this.terminals[tabId];
         delete this.terminalThemes[tabId];
 
         // Switch to another tab or hide terminal view
@@ -1539,98 +2172,33 @@ Important: Each code can only be used once. Store these codes securely!
 
         // Create new tab
         const tabId = this.createTab(client);
-        
-        // Get theme for this terminal (fallback to global theme, then hacker-blue)
-        const terminalThemeId = this.terminalThemes[tabId] || this.currentTheme || 'hacker-blue';
-        const theme = this.themes[terminalThemeId] || this.themes['hacker-blue'];
-        
-        // Initialize terminal
-        const term = new Terminal({
-            theme: {
-                background: theme.background,
-                foreground: theme.foreground,
-                cursor: theme.cursor,
-                selection: theme.cursor + '40',
-                black: theme.colors[0],
-                red: theme.colors[1],
-                green: theme.colors[2],
-                yellow: theme.colors[3],
-                blue: theme.colors[4],
-                magenta: theme.colors[5],
-                cyan: theme.colors[6],
-                white: theme.colors[7]
-            },
-            fontSize: 14,
-            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-            cursorBlink: true
-        });
-        
-        const fitAddon = new FitAddon.FitAddon();
-        term.loadAddon(fitAddon);
-        term.open(document.getElementById(tabId));
-        
-        setTimeout(() => fitAddon.fit(), 100);
 
-        const ws = new WebSocket(`ws://localhost:8000/ws/${client.id}`);
+        // Create terminal in the new tab
+        const wrapper = document.querySelector(`.terminal-wrapper[data-tab-id="${tabId}"]`);
+        await this.createTerminalInstance(wrapper, client, tabId);
 
-        ws.onopen = () => {
-            term.write('Connected to SSH server\r\n');
-            
-            // Detect OS if not already detected
-            if (!client.detected_os || client.detected_os === 'unknown') {
-                this.detectClientOS(client.id).then((detectedOs) => {
-                    if (detectedOs && detectedOs !== 'unknown') {
-                        term.write(`\r\nDetected OS: ${detectedOs}\r\n`);
-                        client.detected_os = detectedOs; // Update local client object
-                    }
-                }).catch((error) => {
-                    console.error('OS detection failed:', error);
-                });
-            }
-        };
-
-        ws.onmessage = (event) => {
-            term.write(event.data);
-        };
-
-        ws.onerror = (error) => {
-            term.write(`Error: ${error.message}\r\n`);
-        };
-
-        ws.onclose = (event) => {
-            term.write(`\r\nConnection closed: ${event.reason}\r\n`);
-        };
-
-        term.onData((data) => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(data);
-            }
-        });
-
-        // Store terminal with its theme
-        this.terminals[tabId] = { term, fitAddon, ws, theme: terminalThemeId };
-        this.terminalThemes[tabId] = terminalThemeId;
+        this.terminalThemes[tabId] = this.currentTheme || 'hacker-blue'; // Default theme for tab
         this.switchTab(tabId);
-        
+
         // Show settings icon
         this.settingsIcon.classList.add('visible');
     }
 
     showTerminalThemeSelector(tabId, event) {
         event.stopPropagation();
-        
+
         // Remove any existing selector
         const existingSelector = document.querySelector('.terminal-theme-selector');
         if (existingSelector) {
             existingSelector.remove();
         }
-        
+
         // Create theme selector dropdown
         const selector = document.createElement('div');
         selector.className = 'terminal-theme-selector';
-        
+
         const currentTheme = this.terminalThemes[tabId] || 'hacker-blue';
-        
+
         let themeOptions = '';
         Object.keys(this.themes).forEach(themeId => {
             const theme = this.themes[themeId];
@@ -1645,7 +2213,7 @@ Important: Each code can only be used once. Store these codes securely!
                 </div>
             `;
         });
-        
+
         selector.innerHTML = `
             <div class="theme-selector-content">
                 <div class="theme-selector-header">
@@ -1657,16 +2225,16 @@ Important: Each code can only be used once. Store these codes securely!
                 </div>
             </div>
         `;
-        
+
         // Position the selector near the theme button
         const rect = event.target.getBoundingClientRect();
         selector.style.position = 'fixed';
         selector.style.top = `${rect.bottom + 5}px`;
         selector.style.left = `${rect.left - 150}px`;
         selector.style.zIndex = '10000';
-        
+
         document.body.appendChild(selector);
-        
+
         // Close selector when clicking outside
         setTimeout(() => {
             document.addEventListener('click', function closeSelector(e) {
@@ -1680,13 +2248,13 @@ Important: Each code can only be used once. Store these codes securely!
 
     applyTerminalTheme(tabId, themeId) {
         this.applyThemeToTerminal(tabId, themeId);
-        
+
         // Close the theme selector
         const selector = document.querySelector('.terminal-theme-selector');
         if (selector) {
             selector.remove();
         }
-        
+
         // Update the visual indicator if needed
         this.updateTerminalThemeIndicator(tabId, themeId);
     }
@@ -1712,11 +2280,11 @@ Important: Each code can only be used once. Store these codes securely!
                     'Authorization': `Bearer ${this.getToken()}`
                 }
             });
-            
+
             if (response.ok) {
                 const data = await response.json();
                 const serverSettings = data.settings;
-                
+
                 // Merge server settings with local defaults
                 this.settingsData = {
                     ...this.settingsData,
@@ -1725,17 +2293,17 @@ Important: Each code can only be used once. Store these codes securely!
                         ...serverSettings
                     }
                 };
-                
+
                 // Apply saved theme if available
                 if (serverSettings.theme) {
                     this.currentTheme = serverSettings.theme;
                 }
-                
+
                 // Load per-terminal themes if available
                 if (serverSettings.terminalThemes) {
                     this.terminalThemes = { ...serverSettings.terminalThemes };
                 }
-                
+
                 this.updateSettingsUI();
             } else {
                 console.log('No terminal settings found on server, using defaults');
@@ -1745,15 +2313,15 @@ Important: Each code can only be used once. Store these codes securely!
                     try {
                         const parsed = JSON.parse(saved);
                         this.settingsData = { ...this.settingsData, ...parsed };
-                        
+
                         if (this.settingsData.terminal && this.settingsData.terminal.theme) {
                             this.currentTheme = this.settingsData.terminal.theme;
                         }
-                        
+
                         if (this.settingsData.terminal && this.settingsData.terminal.terminalThemes) {
                             this.terminalThemes = { ...this.settingsData.terminal.terminalThemes };
                         }
-                        
+
                         this.updateSettingsUI();
                     } catch (error) {
                         console.error('Failed to load local settings:', error);
@@ -1768,15 +2336,15 @@ Important: Each code can only be used once. Store these codes securely!
                 try {
                     const parsed = JSON.parse(saved);
                     this.settingsData = { ...this.settingsData, ...parsed };
-                    
+
                     if (this.settingsData.terminal && this.settingsData.terminal.theme) {
                         this.currentTheme = this.settingsData.terminal.theme;
                     }
-                    
+
                     if (this.settingsData.terminal && this.settingsData.terminal.terminalThemes) {
                         this.terminalThemes = { ...this.settingsData.terminal.terminalThemes };
                     }
-                    
+
                     this.updateSettingsUI();
                 } catch (error) {
                     console.error('Failed to load local settings:', error);
@@ -1793,7 +2361,7 @@ Important: Each code can only be used once. Store these codes securely!
                 bellSound: this.settingsData.terminal.bellSound,
                 terminalThemes: this.terminalThemes
             };
-            
+
             const response = await fetch('/auth/terminal-settings', {
                 method: 'POST',
                 headers: {
@@ -1802,7 +2370,7 @@ Important: Each code can only be used once. Store these codes securely!
                 },
                 body: JSON.stringify(terminalSettings)
             });
-            
+
             if (response.ok) {
                 console.log('Terminal settings saved to server');
                 // Also save to localStorage as backup
@@ -1871,7 +2439,7 @@ Important: Each code can only be used once. Store these codes securely!
         this.closeMFADisableConfirmationModal();
         const modal = document.getElementById('mfa-disable-form-modal');
         modal.classList.add('active');
-        
+
         // Reset form
         const form = document.getElementById('mfa-disable-form');
         form.reset();
@@ -1880,7 +2448,7 @@ Important: Each code can only be used once. Store these codes securely!
     closeMFADisableFormModal() {
         const modal = document.getElementById('mfa-disable-form-modal');
         modal.classList.remove('active');
-        
+
         // Reset form
         const form = document.getElementById('mfa-disable-form');
         form.reset();
@@ -1888,27 +2456,27 @@ Important: Each code can only be used once. Store these codes securely!
 
     async handleMFADisable(e) {
         e.preventDefault();
-        
+
         const password = document.getElementById('mfa-disable-password').value;
         const mfaCode = document.getElementById('mfa-disable-code').value;
-        
+
         if (!password || !mfaCode) {
             this.showToast('Please fill in all fields', 'error');
             return;
         }
-        
+
         if (mfaCode.length !== 6 || !/^Ud{6}U$/.test(mfaCode)) {
             this.showToast('Please enter a valid 6-digit MFA code', 'error');
             return;
         }
-        
+
         await this.disableMFA(password, mfaCode);
     }
 
     // MFA Functions
     async toggleMFA() {
         const currentStatus = this.settingsData.mfa.enabled || (this.currentUser && this.currentUser.mfa_enabled);
-        
+
         if (currentStatus) {
             // Show confirmation modal before disabling MFA
             this.showMFADisableConfirmationModal();
@@ -1954,7 +2522,7 @@ Important: Each code can only be used once. Store these codes securely!
     displayBackupCodes() {
         const display = document.getElementById('backup-codes-display');
         const grid = document.getElementById('backup-codes-grid');
-        
+
         grid.innerHTML = '';
         this.settingsData.mfa.backupCodes.forEach((code, index) => {
             const codeDiv = document.createElement('div');
@@ -1962,17 +2530,17 @@ Important: Each code can only be used once. Store these codes securely!
             codeDiv.textContent = code;
             grid.appendChild(codeDiv);
         });
-        
+
         display.style.display = 'block';
     }
 
     downloadBackupCodes() {
         console.log('Settings downloadBackupCodes called');
         console.log('settingsData:', this.settingsData);
-        
+
         // Check multiple sources for backup codes
         let backupCodes = null;
-        
+
         if (this.settingsData && this.settingsData.mfa && this.settingsData.mfa.backupCodes && this.settingsData.mfa.backupCodes.length > 0) {
             backupCodes = this.settingsData.mfa.backupCodes;
             console.log('Using backup codes from settingsData.mfa.backupCodes:', backupCodes);
@@ -1987,15 +2555,15 @@ Important: Each code can only be used once. Store these codes securely!
                 console.log('Using backup codes from DOM elements:', backupCodes);
             }
         }
-        
+
         console.log('Final backupCodes:', backupCodes);
-        
+
         if (!backupCodes || backupCodes.length === 0) {
             console.error('No backup codes found in any source');
             this.showToast('No backup codes available. Click "Regenerate" first to create new backup codes.', 'warning');
             return;
         }
-        
+
         // Create formatted content
         const timestamp = new Date().toISOString().split('T')[0];
         const content = `SSH Client - Backup Codes
@@ -2007,10 +2575,10 @@ Each code can only be used once.
 ${backupCodes.map((code, index) => `${index + 1}. ${code}`).join('\n')}
 
 Generated on ${new Date().toLocaleString()}`;
-        
+
         console.log('Creating file with content length:', content.length);
         console.log('Content preview:', content.substring(0, 200) + '...');
-        
+
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2018,7 +2586,7 @@ Generated on ${new Date().toLocaleString()}`;
         a.download = `ssh-client-backup-codes-${timestamp}.txt`;
         a.click();
         URL.revokeObjectURL(url);
-        
+
         this.showToast('Backup codes downloaded successfully!', 'success');
     }
 
@@ -2049,9 +2617,9 @@ Generated on ${new Date().toLocaleString()}`;
         const methods = ['authenticator', 'sms', 'email', 'backup-codes'];
         methods.forEach(method => {
             const element = document.getElementById(method + '-method');
-            const isEnabled = this.settingsData.mfa.methods[method.replace('-', '')] || 
-                              (method === 'backup-codes' && this.settingsData.mfa.methods.backupCodes);
-            
+            const isEnabled = this.settingsData.mfa.methods[method.replace('-', '')] ||
+                (method === 'backup-codes' && this.settingsData.mfa.methods.backupCodes);
+
             if (isEnabled) {
                 element.classList.add('enabled');
                 const button = element.querySelector('.btn-primary');
@@ -2146,14 +2714,14 @@ Generated on ${new Date().toLocaleString()}`;
             number: /\d/.test(password),
             special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
         };
-        
+
         const passed = Object.values(checks).filter(Boolean).length;
         let strength = 'weak';
-        
+
         if (passed >= 5) strength = 'strong';
         else if (passed >= 4) strength = 'good';
         else if (passed >= 3) strength = 'fair';
-        
+
         return { strength, checks };
     }
 
@@ -2161,19 +2729,19 @@ Generated on ${new Date().toLocaleString()}`;
         const password = document.getElementById('new-password-change').value;
         const strengthFill = document.getElementById('password-strength-fill');
         const strengthText = document.getElementById('password-strength-text');
-        
+
         if (!password) {
             strengthFill.className = 'strength-fill';
             strengthText.textContent = 'Password strength: Weak';
             this.resetPasswordRequirements();
             return;
         }
-        
+
         const { strength, checks } = this.checkPasswordStrength(password);
-        
+
         strengthFill.className = `strength-fill ${strength}`;
         strengthText.textContent = `Password strength: ${strength.charAt(0).toUpperCase() + strength.slice(1)}`;
-        
+
         // Update requirements
         document.getElementById('length-req').className = checks.length ? 'requirement met' : 'requirement';
         document.getElementById('uppercase-req').className = checks.uppercase ? 'requirement met' : 'requirement';

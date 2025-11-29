@@ -68,3 +68,18 @@ def get_current_verified_user(current_user: User = Depends(get_current_active_us
             detail="Email not verified"
         )
     return current_user
+
+async def get_current_user_from_token(token: str, db: Session) -> User:
+    """Get current user from token string (for WebSockets)"""
+    email = verify_token(token)
+    if email is None:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user = db.query(User).filter(User.email == email).first()
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="Inactive user")
+        
+    return user

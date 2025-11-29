@@ -10,24 +10,170 @@
     height: 100%;
 }
 
+.split-horizontal {
+    flex-direction: row;
+}
+
+.split-vertical {
+    flex-direction: column;
+}
+
+.split-slot {
+    position: relative;
+    overflow: hidden;
+    background: #1a1d29;
+}
+
+/* Active terminal indicator */
+.terminal-content.active-term {
+    box-shadow: inset 0 0 0 2px #4a9eff;
+}
+
 .gutter {
-    background-color: #eee;
+    background-color: #2e3247;
     background-repeat: no-repeat;
     background-position: 50%;
+    transition: background-color 0.2s;
+    z-index: 5;
+    /* Ensure gutter is above terminals */
+}
+
+.gutter:hover {
+    background-color: #4a9eff;
 }
 
 .gutter.gutter-horizontal {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
     cursor: col-resize;
+    width: 8px;
+    /* Slightly wider for easier grabbing */
+    margin: 0 -2px;
+    /* Negative margin to overlap slightly without taking space visually */
+    position: relative;
 }
 
 .gutter.gutter-vertical {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABo7865AAAABlBMVEVHcEzMzMzyAv2sAAAAAXRSTlMAQObYZgAAABBJREFUeF5jOAMEEAIEEFwAn3kMwcB6I2AAAAAASUVORK5CYII=');
     cursor: row-resize;
+    height: 8px;
+    margin: -2px 0;
+    position: relative;
 }
 
-.terminal-container {
-    position: relative;
-    height: 100%;
-    width: 100%;
+/* Terminal Controls */
+.terminal-header {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 10;
+    padding: 5px;
+    opacity: 0;
+    transition: opacity 0.2s;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom-left-radius: 8px;
+}
+
+.terminal-content:hover .terminal-header {
+    opacity: 1;
+}
+
+.close-term-btn {
+    background: transparent;
+    border: none;
+    color: #e4e6eb;
+    cursor: pointer;
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.close-term-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ff4466;
+}
+
+/* Drag and Drop Overlay */
+.drop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    pointer-events: none;
+    display: none;
+    background: rgba(74, 158, 255, 0.05);
+    transition: all 0.1s;
+}
+
+.drop-overlay.active {
+    display: block;
+}
+
+/* Directional indicators */
+.drop-overlay::after {
+    content: 'Drop to Split';
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    background: rgba(74, 158, 255, 0.3);
+    border: 2px dashed #4a9eff;
+    backdrop-filter: blur(2px);
+    border-radius: 4px;
+    box-sizing: border-box;
+    transition: all 0.1s;
+}
+
+/* Default center (if needed, though we'll try to always have a direction) */
+.drop-overlay.split-center::after {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* Left Zone */
+.drop-overlay.split-left::after {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 50%;
+    content: 'Split Left';
+    border-right: none;
+}
+
+/* Right Zone */
+.drop-overlay.split-right::after {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 50%;
+    content: 'Split Right';
+    border-left: none;
+}
+
+/* Top Zone */
+.drop-overlay.split-top::after {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    content: 'Split Top';
+    border-bottom: none;
+}
+
+/* Bottom Zone */
+.drop-overlay.split-bottom::after {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    content: 'Split Bottom';
+    border-top: none;
 }

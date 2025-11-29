@@ -29,24 +29,24 @@ async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @router.post("/clients")
-async def create_client(client: user_schema.SSHClient, db: Session = Depends(get_db)):
-    return user.create_client(db=db, client=client)
+async def create_client(client: user_schema.SSHClient, db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
+    return user.create_client(db=db, client=client, user_id=current_user.id)
 
 @router.get("/clients")
-async def get_clients(db: Session = Depends(get_db)):
-    return {"clients": user.get_clients(db=db)}
+async def get_clients(db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
+    return {"clients": user.get_clients(db=db, user_id=current_user.id)}
 
 @router.get("/clients/{client_id}")
-async def get_client(client_id: int, db: Session = Depends(get_db)):
-    return user.get_client(db=db, client_id=client_id)
+async def get_client(client_id: int, db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
+    return user.get_client(db=db, client_id=client_id, user_id=current_user.id)
 
 @router.put("/clients/{client_id}")
-async def update_client(client_id: int, client: user_schema.SSHClient, db: Session = Depends(get_db)):
-    return user.update_client(db=db, client_id=client_id, client=client)
+async def update_client(client_id: int, client: user_schema.SSHClient, db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
+    return user.update_client(db=db, client_id=client_id, client=client, user_id=current_user.id)
 
 @router.delete("/clients/{client_id}")
-async def delete_client(client_id: int, db: Session = Depends(get_db)):
-    return user.delete_client(db=db, client_id=client_id)
+async def delete_client(client_id: int, db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
+    return user.delete_client(db=db, client_id=client_id, user_id=current_user.id)
 
 
 def detect_operating_system(ssh_client):
@@ -96,9 +96,9 @@ def detect_operating_system(ssh_client):
 
 
 @router.post("/clients/{client_id}/detect-os")
-async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
+async def detect_client_os(client_id: int, db: Session = Depends(get_db), current_user: user_schema.UserResponse = Depends(get_current_active_user)):
     """Detect and update the operating system of an SSH client"""
-    client_details = user.get_client(db=db, client_id=client_id)
+    client_details = user.get_client(db=db, client_id=client_id, user_id=current_user.id)
     if not client_details:
         return {"error": "Client not found"}
     
@@ -129,7 +129,7 @@ async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
             detected_os=detected_os
         )
         
-        updated_client = user.update_client(db=db, client_id=client_id, client=client_data)
+        updated_client = user.update_client(db=db, client_id=client_id, client=client_data, user_id=current_user.id)
         return {"detected_os": detected_os, "client": updated_client}
         
     except Exception as e:
@@ -138,9 +138,24 @@ async def detect_client_os(client_id: int, db: Session = Depends(get_db)):
 
 
 @router.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: int, db: Session = Depends(get_db)):
+async def websocket_endpoint(websocket: WebSocket, client_id: int, token: str = None, db: Session = Depends(get_db)):
+    # Note: We need to validate the token here since WS doesn't support headers easily
+    # We'll expect ?token=... in the URL
     await websocket.accept()
-    client_details = user.get_client(db=db, client_id=client_id)
+    
+    if not token:
+        await websocket.close(code=4003, reason="Authentication required")
+        return
+
+    from app.core.jwt_auth import get_current_user_from_token
+    try:
+        current_user = await get_current_user_from_token(token, db)
+    except Exception as e:
+        logger.error(f"WebSocket auth failed: {e}")
+        await websocket.close(code=4003, reason="Invalid token")
+        return
+
+    client_details = user.get_client(db=db, client_id=client_id, user_id=current_user.id)
     if not client_details:
         logger.warning(f"Client with id {client_id} not found.")
         await websocket.close(code=4000, reason="Client not found")

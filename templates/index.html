@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +10,9 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@4.18.0/lib/xterm.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.0/split.min.js"></script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <link rel="stylesheet" href="/css/multi-view.css">
     <style>
         .mfa-status-text {
             font-size: 0.85em;
@@ -17,61 +20,61 @@
             margin-top: 4px;
             transition: color 0.3s ease;
         }
-        
+
         .confirmation-modal .modal-content {
             max-width: 500px;
         }
-        
+
         .confirmation-content {
             padding: 10px 0;
         }
-        
+
         .btn-danger {
             background-color: #f44336;
             color: white;
             border: none;
         }
-        
+
         .btn-danger:hover {
             background-color: #d32f2f;
         }
-        
+
         .form-help {
             font-size: 0.85em;
             color: #666;
             margin-top: 4px;
         }
-        
+
         .mfa-setup-modal .modal-content {
             max-width: 600px;
         }
-        
+
         .mfa-setup-steps {
             margin: 20px 0;
         }
-        
+
         .mfa-setup-steps .step {
             margin-bottom: 30px;
             padding-bottom: 20px;
             border-bottom: 1px solid #eee;
         }
-        
+
         .mfa-setup-steps .step:last-child {
             border-bottom: none;
             margin-bottom: 0;
         }
-        
+
         .mfa-setup-steps h4 {
             color: #333;
             margin-bottom: 10px;
             font-size: 1.1em;
         }
-        
+
         .qr-code-container {
             text-align: center;
             margin: 15px 0;
         }
-        
+
         .qr-code {
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -79,14 +82,14 @@
             background: white;
             max-width: 200px;
         }
-        
+
         .code-input-group {
             display: flex;
             justify-content: center;
             gap: 8px;
             margin: 15px 0;
         }
-        
+
         .code-input {
             width: 40px;
             height: 50px;
@@ -97,13 +100,13 @@
             border-radius: 6px;
             background: #f9f9f9;
         }
-        
+
         .code-input:focus {
             border-color: #007bff;
             background: white;
             outline: none;
         }
-        
+
         .backup-codes {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -113,9 +116,9 @@
             background: #ffffff;
             border: 1px solid #dee2e6;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        
+
         .backup-code {
             font-family: monospace;
             font-size: 0.9em;
@@ -128,12 +131,12 @@
             border: 2px solid #dee2e6;
             letter-spacing: 1px;
         }
-        
+
         .backup-code:hover {
             background: #e9ecef;
             border-color: #adb5bd;
         }
-        
+
         .backup-codes-warning {
             background: #fff3cd;
             color: #856404;
@@ -143,12 +146,13 @@
             margin: 10px 0;
             font-size: 0.9em;
         }
-        
+
         .download-backup-btn {
             margin-top: 15px;
         }
     </style>
 </head>
+
 <body>
     <div class="main-container">
         <!-- Sidebar -->
@@ -175,6 +179,17 @@
                 <div class="back-btn" onclick="backToList()">
                     <span class="back-icon">←</span>
                     <span>Hosts</span>
+                </div>
+                <div class="split-controls" style="margin-left: auto; display: flex; gap: 5px; padding: 5px;">
+                    <button class="btn btn-small" id="split-horiz-btn" title="Split Horizontal">
+                        <span style="transform: rotate(90deg); display: inline-block;">|</span>
+                    </button>
+                    <button class="btn btn-small" id="split-vert-btn" title="Split Vertical">
+                        <span>|</span>
+                    </button>
+                    <button class="btn btn-small" id="new-tab-btn" title="New Tab" style="margin-left: 5px;">
+                        <span>+</span>
+                    </button>
                 </div>
             </div>
             <div class="terminal-container" id="terminal-container"></div>
@@ -229,8 +244,10 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeCreateModal()">Cancel</button>
-                    <button type="button" class="btn btn-success" onclick="duplicateCurrentClient()" id="duplicate-btn" style="display: none;">Duplicate</button>
-                    <button type="button" class="btn" onclick="deleteCurrentClient()" id="delete-btn" style="background: #d84f76; display: none;">Delete</button>
+                    <button type="button" class="btn btn-success" onclick="duplicateCurrentClient()" id="duplicate-btn"
+                        style="display: none;">Duplicate</button>
+                    <button type="button" class="btn" onclick="deleteCurrentClient()" id="delete-btn"
+                        style="background: #d84f76; display: none;">Delete</button>
                     <button type="submit" class="btn btn-primary" id="submit-btn">Create</button>
                 </div>
             </form>
@@ -242,7 +259,7 @@
         <div class="modal-content">
             <button class="close-btn" onclick="closeSettingsModal()">×</button>
             <div class="modal-header">Settings</div>
-            
+
             <div class="settings-tabs">
                 <button class="settings-tab active" onclick="switchSettingsTab('security')">Security</button>
                 <button class="settings-tab" onclick="switchSettingsTab('terminal')">Terminal</button>
@@ -256,7 +273,7 @@
                     <div class="settings-section-description">
                         Add an extra layer of security to your account by enabling two-factor authentication.
                     </div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Enable MFA</h4>
@@ -278,7 +295,8 @@
                                     </div>
                                 </div>
                                 <div class="mfa-method-actions">
-                                    <button class="btn btn-small btn-primary" onclick="setupAuthenticator()">Setup</button>
+                                    <button class="btn btn-small btn-primary"
+                                        onclick="setupAuthenticator()">Setup</button>
                                 </div>
                             </div>
 
@@ -318,7 +336,8 @@
                                 </div>
                                 <div class="mfa-method-actions">
                                     <button class="btn btn-small" onclick="generateBackupCodes()">Generate</button>
-                                    <button class="btn btn-small" onclick="viewBackupCodes()" style="display: none;" id="view-backup-codes">View</button>
+                                    <button class="btn btn-small" onclick="viewBackupCodes()" style="display: none;"
+                                        id="view-backup-codes">View</button>
                                 </div>
                             </div>
                         </div>
@@ -345,7 +364,7 @@
                     <div class="settings-section-description">
                         Manage your account credentials and personal information.
                     </div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Change Email</h4>
@@ -373,7 +392,7 @@
 
                 <div class="settings-section">
                     <div class="settings-section-title">Session Management</div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Auto Logout</h4>
@@ -401,7 +420,7 @@
                     <div class="settings-section-description">
                         Customize the look and feel of your terminal sessions.
                     </div>
-                    
+
                     <div class="theme-section">
                         <div class="theme-section-title">Themes</div>
                         <div class="theme-grid" id="settings-theme-grid"></div>
@@ -410,7 +429,7 @@
 
                 <div class="settings-section">
                     <div class="settings-section-title">Terminal Behavior</div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Auto Reconnect</h4>
@@ -435,7 +454,7 @@
             <div class="settings-content" id="general-settings">
                 <div class="settings-section">
                     <div class="settings-section-title">Application Preferences</div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Dark Mode</h4>
@@ -466,7 +485,7 @@
 
                 <div class="settings-section">
                     <div class="settings-section-title">Data & Storage</div>
-                    
+
                     <div class="settings-option">
                         <div class="settings-option-info">
                             <h4>Clear Session Data</h4>
@@ -505,7 +524,7 @@
         <div class="modal-content">
             <button class="close-btn" onclick="closeChangeEmailModal()">×</button>
             <div class="modal-header">Change Email Address</div>
-            
+
             <div class="current-info">
                 Current email: <strong id="currentEmailDisplay">user@example.com</strong>
             </div>
@@ -592,9 +611,10 @@
         <div class="modal-content">
             <button class="close-btn" onclick="closeMFADisableConfirmationModal()">×</button>
             <div class="modal-header">Disable Multi-Factor Authentication</div>
-            
+
             <div class="confirmation-content">
-                <div class="warning-icon" style="font-size: 48px; color: #ff9800; text-align: center; margin-bottom: 20px;">⚠️</div>
+                <div class="warning-icon"
+                    style="font-size: 48px; color: #ff9800; text-align: center; margin-bottom: 20px;">⚠️</div>
                 <p style="text-align: center; margin-bottom: 20px;">
                     <strong>Are you sure you want to disable Multi-Factor Authentication?</strong>
                 </p>
@@ -620,7 +640,7 @@
         <div class="modal-content">
             <button class="close-btn" onclick="closeMFADisableFormModal()">×</button>
             <div class="modal-header">Verify Identity to Disable MFA</div>
-            
+
             <form id="mfa-disable-form">
                 <div class="form-group">
                     <label for="mfa-disable-password">Current Password</label>
@@ -629,7 +649,8 @@
 
                 <div class="form-group">
                     <label for="mfa-disable-code">MFA Code</label>
-                    <input type="text" id="mfa-disable-code" name="mfaCode" placeholder="Enter 6-digit code" maxlength="6" required>
+                    <input type="text" id="mfa-disable-code" name="mfaCode" placeholder="Enter 6-digit code"
+                        maxlength="6" required>
                     <div class="form-help">Enter the 6-digit code from your authenticator app</div>
                 </div>
 
@@ -647,4 +668,5 @@
 
     <script src="/js/index.js"></script>
 </body>
+
 </html>
