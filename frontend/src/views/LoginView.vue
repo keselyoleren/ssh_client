@@ -6,8 +6,11 @@ import Toastify from 'toastify-js'
 const router = useRouter()
 const email = ref('')
 const password = ref('')
+const mfaCode = ref('')
+const showMFAInput = ref(false)
 const rememberMe = ref(false)
 const isLoading = ref(false)
+const mfaInput = ref(null)
 
 const handleLogin = async () => {
   if (!email.value || !password.value) {
@@ -15,29 +18,53 @@ const handleLogin = async () => {
     return
   }
 
+  if (showMFAInput.value && !mfaCode.value) {
+    showToast('Please enter your MFA code', 'error')
+    return
+  }
+
   isLoading.value = true
 
   try {
+    const payload = {
+      email: email.value,
+      password: password.value,
+      remember_device: rememberMe.value
+    }
+
+    if (showMFAInput.value) {
+      payload.mfa_code = mfaCode.value
+    }
+
     const response = await fetch('/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-        remember_device: rememberMe.value
-      })
+      body: JSON.stringify(payload)
     })
 
     const data = await response.json()
 
     if (response.ok) {
+      // Check if MFA is required
+      if (data.mfa_required) {
+        showMFAInput.value = true
+        showToast('MFA code required', 'info')
+        // Focus MFA input on next tick
+        setTimeout(() => {
+          if (mfaInput.value) mfaInput.value.focus()
+        }, 100)
+        return
+      }
+
       if (rememberMe.value) {
         localStorage.setItem('token', data.access_token)
+        localStorage.setItem('refresh_token', data.refresh_token)
         localStorage.setItem('user', JSON.stringify(data.user || {}))
       } else {
         sessionStorage.setItem('token', data.access_token)
+        sessionStorage.setItem('refresh_token', data.refresh_token)
         sessionStorage.setItem('user', JSON.stringify(data.user || {}))
       }
       
@@ -45,6 +72,9 @@ const handleLogin = async () => {
       router.push('/')
     } else {
       showToast(data.detail || 'Login failed', 'error')
+      if (showMFAInput.value) {
+        mfaCode.value = '' // Clear invalid code
+      }
     }
   } catch (error) {
     console.error('Login error:', error)
@@ -92,6 +122,7 @@ const showToast = (message, type = 'info') => {
             placeholder="Enter your email"
             required
             autofocus
+            :disabled="showMFAInput"
           >
         </div>
         
@@ -103,6 +134,20 @@ const showToast = (message, type = 'info') => {
             v-model="password" 
             placeholder="Enter your password"
             required
+            :disabled="showMFAInput"
+          >
+        </div>
+
+        <div class="form-group" v-if="showMFAInput">
+          <label for="mfa-code">MFA Code</label>
+          <input 
+            type="text" 
+            id="mfa-code" 
+            v-model="mfaCode" 
+            placeholder="Enter 6-digit code"
+            required
+            maxlength="6"
+            ref="mfaInput"
           >
         </div>
         
@@ -116,7 +161,7 @@ const showToast = (message, type = 'info') => {
         </div>
         
         <button type="submit" class="btn-login" :disabled="isLoading">
-          {{ isLoading ? 'Signing in...' : 'Sign In' }}
+          {{ isLoading ? 'Signing in...' : (showMFAInput ? 'Verify & Sign In' : 'Sign In') }}
         </button>
       </form>
       

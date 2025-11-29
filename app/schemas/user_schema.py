@@ -35,6 +35,9 @@ class UserLogin(BaseModel):
     mfa_code: Optional[str] = None
     remember_device: Optional[bool] = False
 
+class TokenRefresh(BaseModel):
+    refresh_token: str
+
 class UserResponse(UserBase):
     id: int
     is_active: bool

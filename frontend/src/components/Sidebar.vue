@@ -114,7 +114,7 @@ onMounted(() => {
           <div class="host-name">{{ client.label || client.host || client.name }}</div>
           <div class="host-detail">{{ client.username }}@{{ client.hostname }}</div>
         </div>
-        <div class="host-status" :class="{ connected: false }" v-if="isOpen"></div> 
+        <div class="host-status" :class="{ connected: activeClientId === client.id }" v-if="isOpen"></div> 
       </div>
     </div>
 
@@ -242,8 +242,8 @@ onMounted(() => {
 }
 
 .host-card.active {
-  background-color: rgba(74, 158, 255, 0.1);
-  border-color: #4a9eff;
+  background-color: rgba(46, 204, 113, 0.15);
+  border-color: #2ecc71;
 }
 
 .host-icon {

@@ -7,6 +7,7 @@ import SettingsModal from '../components/Modals/SettingsModal.vue'
 import MFAModal from '../components/Modals/MFAModal.vue'
 import CreateHostModal from '../components/Modals/CreateHostModal.vue'
 import Toastify from 'toastify-js'
+import { fetchWithAuth } from '../utils/api'
 
 const router = useRouter()
 const clients = ref([])
@@ -32,15 +33,7 @@ onMounted(async () => {
 
 const fetchUser = async () => {
   try {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    if (!token) {
-      router.push('/login')
-      return
-    }
-
-    const response = await fetch('/auth/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    const response = await fetchWithAuth('/auth/me')
 
     if (response.ok) {
       currentUser.value = await response.json()
@@ -55,12 +48,7 @@ const fetchUser = async () => {
 
 const fetchClients = async () => {
   try {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    if (!token) return
-
-    const response = await fetch('/clients', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
+    const response = await fetchWithAuth('/clients')
     
     if (response.status === 401) {
       router.push('/login')
@@ -79,6 +67,12 @@ const handleSelectClient = (client) => {
   activeClientId.value = client.id
   if (terminalView.value) {
     terminalView.value.createTab(client)
+  }
+}
+
+const handleTabChange = (client) => {
+  if (client) {
+    activeClientId.value = client.id
   }
 }
 
@@ -103,13 +97,8 @@ const handleSaveClient = async (clientData) => {
       client_id: clientToEdit.value ? String(clientToEdit.value.id) : undefined
     }
 
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    const response = await fetch(url, {
+    const response = await fetchWithAuth(url, {
       method: method,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     })
     
@@ -128,10 +117,8 @@ const handleSaveClient = async (clientData) => {
 
 const handleDeleteClient = async (client) => {
   try {
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    const response = await fetch(`/clients/${client.id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
+    const response = await fetchWithAuth(`/clients/${client.id}`, {
+      method: 'DELETE'
     })
     
     if (response.ok) {
@@ -163,13 +150,8 @@ const handleDuplicateClient = async (client) => {
     // but usually we don't have the password in the client object from the list.
     // If the backend returns it, it's there.
     
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    const response = await fetch('/clients', {
+    const response = await fetchWithAuth('/clients', {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
       body: JSON.stringify(newClient)
     })
     
@@ -225,19 +207,8 @@ const handleSaveSettings = async (settings) => {
     
     // Persist to backend
     try {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-      const payload = {
-        theme: settings.theme,
-        // Add other settings if needed
-        terminal: { theme: settings.theme }
-      }
-      
-      const response = await fetch('/auth/terminal-settings', {
+      const response = await fetchWithAuth('/auth/terminal-settings', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(payload)
       })
       
@@ -260,10 +231,8 @@ const handleSaveSettings = async (settings) => {
 const handleDetectOS = async (client) => {
   try {
     showToast(`Detecting OS for ${client.name}...`, 'info')
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    const response = await fetch(`/clients/${client.id}/detect-os`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` }
+    const response = await fetchWithAuth(`/clients/${client.id}/detect-os`, {
+      method: 'POST'
     })
     const data = await response.json()
     
@@ -285,8 +254,10 @@ const handleDetectOS = async (client) => {
 
 const handleLogout = () => {
   localStorage.removeItem('token')
+  localStorage.removeItem('refresh_token')
   localStorage.removeItem('user')
   sessionStorage.removeItem('token')
+  sessionStorage.removeItem('refresh_token')
   sessionStorage.removeItem('user')
   router.push('/login')
 }
@@ -346,6 +317,7 @@ const showToast = (message, type = 'info') => {
           ref="terminalView" 
           :active-client-id="activeClientId" 
           :theme="currentTheme"
+          @tab-changed="handleTabChange"
         />
       </div>
     </div>

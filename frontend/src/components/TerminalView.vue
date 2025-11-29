@@ -80,9 +80,16 @@ const closeTab = (tabId) => {
   }
 }
 
+const emit = defineEmits(['tab-changed'])
+
 const switchTab = (tabId) => {
   tabs.value.forEach(t => t.active = (t.id === tabId))
   activeTabId.value = tabId
+  
+  const activeTab = tabs.value.find(t => t.id === tabId)
+  if (activeTab && activeTab.client) {
+    emit('tab-changed', activeTab.client)
+  }
 }
 
 // Tree Manipulation Helpers
@@ -234,6 +241,23 @@ const handleTabDrop = async ({ sourceTabId, targetTermId, direction, insertBefor
   }
   
   tabLayouts.value[targetTerm.tabId] = replaceNode(targetLayout, targetTermId, newSplitNode)
+
+  // Update Tab Title
+  const targetTab = tabs.value.find(t => t.id === targetTerm.tabId)
+  const sourceTab = tabs.value.find(t => t.id === sourceTabId)
+  
+  if (targetTab && sourceTab) {
+    // Avoid duplicate titles if merging multiple times
+    const sourceTitle = sourceTab.title
+    const targetTitle = targetTab.title
+    
+    // Simple concatenation for now: "Title 1 | Title 2"
+    if (insertBefore) {
+      targetTab.title = `${sourceTitle} | ${targetTitle}`
+    } else {
+      targetTab.title = `${targetTitle} | ${sourceTitle}`
+    }
+  }
   
   // 5. Close source tab if empty (MANUAL CLEANUP)
   if (sourceTabTerminalsCount === 1) {

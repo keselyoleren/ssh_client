@@ -11,6 +11,7 @@ const mfaEnabled = ref(false)
 const qrCode = ref('')
 const secret = ref('')
 const verificationCode = ref('')
+const backupCodes = ref([])
 
 const fetchStatus = async () => {
   try {
@@ -34,20 +35,85 @@ const setupMFA = async () => {
     })
     const data = await response.json()
     secret.value = data.secret
-    qrCode.value = data.qr_code // This is likely a base64 image or URL
+    qrCode.value = data.qr_code_url
+    backupCodes.value = data.backup_codes || []
   } catch (error) {
     console.error('Failed to setup MFA', error)
   }
 }
 
 const verifyMFA = async () => {
-  // Implementation for verifying code
-  console.log('Verify code:', verificationCode.value)
+  if (!verificationCode.value || verificationCode.value.length !== 6) {
+    alert('Please enter a valid 6-digit code')
+    return
+  }
+
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    const response = await fetch('/auth/mfa/verify-setup', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ code: verificationCode.value })
+    })
+
+    if (response.ok) {
+      alert('MFA enabled successfully!')
+      mfaEnabled.value = true
+      secret.value = ''
+      qrCode.value = ''
+      backupCodes.value = []
+      verificationCode.value = ''
+      await fetchStatus()
+    } else {
+      const error = await response.json()
+      alert('Invalid code: ' + (error.detail || 'Unknown error'))
+    }
+  } catch (error) {
+    console.error('MFA verification error:', error)
+    alert('Failed to verify MFA')
+  }
 }
 
 const disableMFA = async () => {
-  // Implementation for disabling MFA
-  console.log('Disable MFA')
+  if (!confirm('Are you sure you want to disable MFA? This will make your account less secure.')) {
+    return
+  }
+
+  const password = prompt('Enter your current password to disable MFA:')
+  if (!password) return
+
+  const code = prompt('Enter a 6-digit MFA code:')
+  if (!code) return
+
+  try {
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+    const response = await fetch('/auth/mfa/disable', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({ 
+        password: password,
+        code: code
+      })
+    })
+
+    if (response.ok) {
+      alert('MFA disabled successfully!')
+      mfaEnabled.value = false
+      await fetchStatus()
+    } else {
+      const error = await response.json()
+      alert('Failed to disable MFA: ' + (error.detail || 'Unknown error'))
+    }
+  } catch (error) {
+    console.error('MFA disable error:', error)
+    alert('Failed to disable MFA')
+  }
 }
 
 onMounted(() => {
@@ -83,9 +149,19 @@ const close = () => {
           
           <div v-if="secret" class="qr-section">
             <p>Scan this QR code with your authenticator app:</p>
-            <div class="qr-code" v-html="qrCode"></div>
+            <div class="qr-code-container">
+              <img :src="qrCode" alt="MFA QR Code" class="qr-image" />
+            </div>
             <p>Or enter this secret: <code>{{ secret }}</code></p>
             
+            <div class="backup-codes" v-if="backupCodes.length > 0">
+              <h4>Backup Codes</h4>
+              <p class="warning-text">Save these codes in a safe place!</p>
+              <div class="codes-grid">
+                <span v-for="code in backupCodes" :key="code" class="code-item">{{ code }}</span>
+              </div>
+            </div>
+
             <div class="verify-form">
               <input type="text" v-model="verificationCode" placeholder="Enter 6-digit code">
               <button class="btn-primary" @click="verifyMFA">Verify</button>
@@ -217,5 +293,52 @@ const close = () => {
   border: 1px solid #2e3247;
   background-color: #0f111a;
   color: white;
+}
+
+.qr-code-container {
+  background: white;
+  padding: 10px;
+  display: inline-block;
+  margin: 10px 0;
+  border-radius: 4px;
+}
+
+.qr-image {
+  max-width: 200px;
+  display: block;
+}
+
+.backup-codes {
+  margin: 20px 0;
+  text-align: left;
+  background-color: #232736;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.backup-codes h4 {
+  margin: 0 0 5px 0;
+  color: #fff;
+}
+
+.warning-text {
+  color: #e74c3c;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.codes-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.code-item {
+  font-family: monospace;
+  background-color: #1a1d29;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+  color: #8b9bb4;
 }
 </style>
