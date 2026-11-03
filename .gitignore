@@ -13,3 +13,4 @@ src-tauri/gen/
 !.vscode/extensions.json
 .claude/
 *.log
+.vite/

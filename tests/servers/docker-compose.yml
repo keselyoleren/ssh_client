@@ -34,7 +34,7 @@ services:
 
   minio:
     container_name: kshell-minio
-    image: minio/minio
+    image: quay.io/minio/minio
     command: server /data
     ports: ["9000:9000"]
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 3s, retries: 40 }
