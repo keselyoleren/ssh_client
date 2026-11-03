@@ -30,6 +30,16 @@ services:
     environment:
       USERS: "ftpuser|ftppass"
       ADDRESS: 127.0.0.1
+    # Run vsftpd in the foreground so it stays the container's main process and its errors reach the logs.
+    # The image's config ends with background=YES, and vsftpd applies arguments in order, so the config file
+    # comes first and our overrides after it. The image's entrypoint still creates USERS before this runs.
+    command:
+      - vsftpd
+      - /etc/vsftpd/vsftpd.conf
+      - -obackground=NO
+      - -opasv_min_port=21000
+      - -opasv_max_port=21010
+      - -opasv_address=127.0.0.1
     ports: ["2121:21", "21000-21010:21000-21010"]
     healthcheck: { test: ["CMD", "nc", "-z", "127.0.0.1", "21"], interval: 3s, retries: 40 }
 
