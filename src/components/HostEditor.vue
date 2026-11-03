@@ -2,7 +2,8 @@
 import { computed, reactive, ref } from 'vue'
 import { store, loadVault, toast, err } from '../lib/store'
 import { api } from '../lib/api'
-import { PROTOCOLS, S3_PRESETS } from '../lib/os'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { PROTOCOLS, S3_PRESETS, isObjectStorage } from '../lib/os'
 import Icon from './Icon.vue'
 
 const blank = {
@@ -27,6 +28,8 @@ const blank = {
   access_key: '',
   secret_key: '',
   path_style: false,
+  virtual_hosted: false,
+  credential: '',
 }
 const h = reactive({ ...blank, ...(store.editor.host || {}) })
 const tags = ref((h.tags || []).join(', '))
@@ -42,10 +45,33 @@ function setProto(p) {
   if (!h.port || PROTOCOLS.some((x) => x.port === h.port)) h.port = def.port
   h.protocol = p
 }
+const isObj = computed(() => isObjectStorage(h.protocol))
+
+// S3 URL style: 'path' = https://endpoint/bucket, 'virtual' = https://bucket.endpoint
+const urlStyle = computed({
+  get: () => (h.path_style ? 'path' : h.virtual_hosted || !h.endpoint ? 'virtual' : 'path'),
+  set: (v) => {
+    h.path_style = v === 'path'
+    h.virtual_hosted = v === 'virtual'
+  },
+})
 function preset(p) {
   h.endpoint = p.endpoint
   h.region = p.region
-  h.path_style = !!p.endpoint
+  urlStyle.value = p.url
+}
+async function pickCredential() {
+  const path = await openDialog({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  })
+  if (!path) return
+  try {
+    h.credential = await api.read_local_text({ path })
+  } catch (e) {
+    err(e)
+  }
 }
 
 function payload() {
@@ -56,11 +82,13 @@ function payload() {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
-    label: h.label || (h.protocol === 's3' ? h.bucket || 'Object storage' : h.host),
+    label: h.label || (isObj.value ? h.bucket || 'Object storage' : h.host),
   }
 }
 async function save() {
-  if (h.protocol !== 's3' && !h.host) return toast('Address is required', 'error')
+  if (!isObj.value && !h.host) return toast('Address is required', 'error')
+  if ((h.protocol === 'azblob' || h.protocol === 'gcs') && !h.bucket)
+    return toast(h.protocol === 'azblob' ? 'Container is required' : 'Bucket is required', 'error')
   try {
     await api.host_save({ host: payload() })
     await loadVault()
@@ -107,7 +135,7 @@ async function test() {
           </button>
         </div>
 
-        <template v-if="h.protocol !== 's3'">
+        <template v-if="!isObj">
           <div class="row">
             <div class="field" style="flex: 3">
               <label>Address</label
@@ -157,15 +185,68 @@ async function test() {
             <label>Secret access key</label
             ><input class="input mono" v-model.trim="h.secret_key" :type="showPass ? 'text' : 'password'" />
           </div>
-          <div class="row tog">
-            <button
-              type="button"
-              class="switch"
-              :class="{ on: h.path_style }"
-              @click="h.path_style = !h.path_style"
-            ></button>
-            Path-style URLs (MinIO, most self-hosted)
+          <div class="field">
+            <label>URL style</label>
+            <select class="select" v-model="urlStyle">
+              <option value="path">Path-style: endpoint/bucket (MinIO, R2, most self-hosted)</option>
+              <option value="virtual">Virtual-hosted: bucket.endpoint (AWS, Tencent COS)</option>
+            </select>
           </div>
+        </template>
+
+        <template v-else-if="h.protocol === 'azblob'">
+          <div class="field">
+            <label>Storage account name</label
+            ><input class="input mono" v-model.trim="h.access_key" placeholder="mystorageaccount" />
+          </div>
+          <div class="field">
+            <label>Account key or SAS token</label
+            ><input
+              class="input mono"
+              v-model.trim="h.secret_key"
+              :type="showPass ? 'text' : 'password'"
+              placeholder="key, or sv=…&sig=…"
+            />
+          </div>
+          <div class="field">
+            <label>Container</label><input class="input" v-model.trim="h.bucket" placeholder="backups" />
+          </div>
+          <div class="field">
+            <label>Endpoint <span class="dim">(optional)</span></label
+            ><input
+              class="input mono"
+              v-model.trim="h.endpoint"
+              :placeholder="`https://${h.access_key || '<account>'}.blob.core.windows.net`"
+            />
+          </div>
+          <p class="hint">
+            Share links need the account key. With a SAS token you can browse and transfer, but not create links.
+          </p>
+        </template>
+
+        <template v-else-if="h.protocol === 'gcs'">
+          <div class="field">
+            <label>Bucket</label><input class="input" v-model.trim="h.bucket" placeholder="my-bucket" />
+          </div>
+          <div class="field">
+            <label>Service account key (JSON)</label>
+            <textarea
+              class="textarea"
+              rows="5"
+              v-model="h.credential"
+              placeholder='{ "type": "service_account", … }'
+            ></textarea>
+            <button type="button" class="btn sm" style="align-self: flex-start" @click="pickCredential">
+              <Icon name="folder" :size="13" /> Choose file…
+            </button>
+          </div>
+          <div class="field">
+            <label>Endpoint <span class="dim">(optional)</span></label
+            ><input class="input mono" v-model.trim="h.endpoint" placeholder="https://storage.googleapis.com" />
+          </div>
+          <p class="hint">
+            Leave the key empty for public buckets (read-only). Share links need a service account key.
+          </p>
         </template>
 
         <template v-else>
@@ -328,6 +409,11 @@ async function test() {
   display: flex;
   gap: 4px;
   align-items: center;
+}
+.hint {
+  font-size: 12px;
+  color: var(--text-3);
+  margin: -4px 0 12px;
 }
 .tog {
   font-size: 13px;

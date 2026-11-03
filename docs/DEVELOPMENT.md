@@ -79,16 +79,22 @@ cancellation. They need no network.
 | `kshell-ssh2` | internal only | `inner` / `inner` | jump host target |
 | `kshell-ftp` | 2121 | `ftpuser` / `ftppass` | FTP |
 | `kshell-minio` | 9000 | `minioadmin` / `minioadmin` | S3 |
+| `kshell-azurite` | 10000 | `devstoreaccount1` / well-known dev key | Azure Blob (`tests/object_storage.rs`) |
+| `kshell-fake-gcs` | 4443 | none | Google Cloud Storage (`tests/object_storage.rs`) |
 
 ```bash
 npm run test:e2e
 # or step by step:
 docker compose -f tests/servers/docker-compose.yml up -d --wait
-cd src-tauri && cargo test --test e2e -- --ignored --nocapture
+cd src-tauri && cargo test --test e2e --test object_storage -- --ignored --nocapture
 docker compose -f tests/servers/docker-compose.yml down
 ```
 
 The suite prints each step with its timing and transfer speeds, so it also works as a quick performance check.
+
+Known emulator gaps: fake-gcs-server doesn't implement GCS's XML multipart upload or batch delete. The GCS test
+therefore uploads a 6 MB file (below the 8 MB chunk size, so a single request), and K-Shell deletes folders object by
+object. Large multipart uploads to Google Cloud Storage are only exercised against the real service.
 
 ## Debugging
 

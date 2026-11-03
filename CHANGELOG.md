@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Azure Blob Storage hosts (account key or SAS token). Share links are read-only SAS URLs (`sp=r`).
+- Google Cloud Storage hosts using a service-account key (JSON), or anonymous access for public buckets.
+- S3 hosts can choose path-style or virtual-hosted URLs, needed for services such as Tencent COS.
+- More S3 presets: Tencent COS, Scaleway, Hetzner, Linode/Akamai and Oracle Cloud.
+- End-to-end tests for Azure (Azurite) and GCS (fake-gcs-server).
+
 ### Fixed
 - macOS: <kbd>⌘W</kbd> closed the whole window instead of the current tab. The app now uses its own menu
   without "Close Window".

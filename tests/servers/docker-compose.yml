@@ -38,3 +38,17 @@ services:
     command: server /data
     ports: ["9000:9000"]
     healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 3s, retries: 40 }
+
+  # Azure Blob Storage emulator (Microsoft). Account: devstoreaccount1 (well-known dev key).
+  azurite:
+    container_name: kshell-azurite
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite-blob --blobHost 0.0.0.0 --skipApiVersionCheck
+    ports: ["10000:10000"]
+
+  # Google Cloud Storage emulator.
+  fake-gcs:
+    container_name: kshell-fake-gcs
+    image: fsouza/fake-gcs-server
+    command: -scheme http -port 4443 -public-host 127.0.0.1:4443 -backend memory
+    ports: ["4443:4443"]

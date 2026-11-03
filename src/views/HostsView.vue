@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { store, connectHost, openSftp, openMenu, confirm, toast, err, loadVault } from '../lib/store'
 import { api } from '../lib/api'
-import { badge } from '../lib/os'
+import { badge, isObjectStorage } from '../lib/os'
 import Icon from '../components/Icon.vue'
 
 const q = ref('')
@@ -43,8 +43,8 @@ const recent = computed(() =>
 )
 
 const sub = (h) =>
-  h.protocol === 's3'
-    ? h.bucket || h.endpoint || 'AWS S3'
+  isObjectStorage(h.protocol)
+    ? `${{ s3: 's3', azblob: 'azure', gcs: 'gcs' }[h.protocol]} · ${h.bucket || h.endpoint || (h.protocol === 's3' ? 'AWS' : '')}`
     : `${h.protocol !== 'ssh' ? h.protocol + ' · ' : ''}${h.username ? h.username + '@' : ''}${h.host}${h.port && h.port !== 22 && h.port !== 21 ? ':' + h.port : ''}`
 
 function edit(h) {

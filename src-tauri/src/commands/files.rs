@@ -20,6 +20,8 @@ pub async fn fs_open(st: State<'_>, host: Option<Host>) -> Res<Value> {
         Some(h) => match h.protocol.as_str() {
             "ftp" | "ftps" => Fs::ftp(h).await?,
             "s3" => Fs::s3(h)?,
+            "azblob" => Fs::azure(h)?,
+            "gcs" => Fs::gcs(h)?,
             _ => {
                 // Dedicated connection so big transfers never stall interactive shells.
                 let conn = st.pool.fresh(&st.vault, h).await?;

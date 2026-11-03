@@ -8,6 +8,7 @@
 
 mod ftp;
 mod local;
+mod object;
 mod progress;
 mod s3;
 mod sftp;
@@ -67,6 +68,7 @@ pub enum Fs {
     Sftp(sftp::Sftp),
     Ftp(ftp::Ftp),
     S3(s3::S3),
+    Object(object::ObjectStore),
 }
 
 macro_rules! dispatch {
@@ -76,6 +78,7 @@ macro_rules! dispatch {
             Fs::Sftp($b) => $e,
             Fs::Ftp($b) => $e,
             Fs::S3($b) => $e,
+            Fs::Object($b) => $e,
         }
     };
 }
@@ -113,6 +116,14 @@ impl Fs {
 
     pub fn s3(host: &Host) -> Res<Self> {
         Ok(Fs::S3(s3::S3::new(host)?))
+    }
+
+    pub fn azure(host: &Host) -> Res<Self> {
+        Ok(Fs::Object(object::ObjectStore::azure(host)?))
+    }
+
+    pub fn gcs(host: &Host) -> Res<Self> {
+        Ok(Fs::Object(object::ObjectStore::gcs(host)?))
     }
 
     // ---------- path helpers ----------

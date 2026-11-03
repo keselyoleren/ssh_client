@@ -62,7 +62,7 @@ SSH connections are pooled per host id, so several terminals to one host share o
 
 | Command | Arguments | Returns |
 |---|---|---|
-| `fs_open` | `host: Host \| null` (null = local disk) | `{ id, home, sep }` |
+| `fs_open` | `host: Host \| null` (null = local disk) | `{ id, home, sep }`. Backend picked by `host.protocol`: `ssh` (SFTP), `ftp`, `ftps`, `s3`, `azblob`, `gcs` |
 | `fs_close` | `id` | – |
 | `fs_list` | `id, path` | `Entry[]`, directories first |
 | `fs_mkdir` | `id, path` | – |
@@ -70,7 +70,7 @@ SSH connections are pooled per host id, so several terminals to one host share o
 | `fs_remove` | `id, path, isDir` | – (directories are removed recursively) |
 | `fs_chmod` | `id, path, mode` | – (local, SFTP and FTP via `SITE CHMOD`) |
 | `fs_read_text` / `fs_write_text` | `id, path` / `id, path, content` | `string` (max 8 MB) / – |
-| `fs_presign` | `id, path, expiry` (seconds) | pre-signed URL (S3 only) |
+| `fs_presign` | `id, path, expiry` (seconds) | share URL: S3 pre-signed GET, Azure read-only SAS (needs the account key), GCS signed URL (needs a service-account key; untested against real GCS) |
 | `local_stat` | `path` | `{ is_dir, size }` |
 | `read_local_text` | `path` | `string` (max 1 MB, used to import key files) |
 | `transfer` | `tid, src, srcPath, isDir, size, dst, dstDir, onProgress: Channel` | resolves when done |

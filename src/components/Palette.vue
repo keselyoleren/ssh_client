@@ -3,6 +3,7 @@ import { computed, ref, onMounted } from 'vue'
 import { store, connectHost, openLocal, openSftp, sendToFocused } from '../lib/store'
 import { uid } from '../lib/api'
 import Icon from './Icon.vue'
+import { isObjectStorage } from '../lib/os'
 
 const q = ref('')
 const sel = ref(0)
@@ -16,7 +17,7 @@ const items = computed(() => {
     const hay = `${h.label} ${h.host} ${h.username} ${h.group} ${(h.tags || []).join(' ')}`.toLowerCase()
     if (!s || hay.includes(s))
       out.push({
-        icon: h.protocol === 's3' ? 'cloud' : 'server',
+        icon: isObjectStorage(h.protocol) ? 'cloud' : 'server',
         label: h.label || h.host,
         sub: `${h.username ? h.username + '@' : ''}${h.host}`,
         run: () => connectHost(h),

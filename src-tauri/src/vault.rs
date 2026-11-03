@@ -53,6 +53,11 @@ pub struct Host {
     pub access_key: String,
     pub secret_key: String,
     pub path_style: bool,
+    /// S3 with a custom endpoint uses path-style URLs unless this is set
+    /// (needed by Alibaba OSS, Tencent COS and other virtual-hosted-only services).
+    pub virtual_hosted: bool,
+    /// Google Cloud Storage service-account key (JSON).
+    pub credential: String,
     pub created_at: i64,
     pub last_used: i64,
 }
