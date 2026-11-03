@@ -14,7 +14,9 @@ export const store = reactive({
   palette: false,
   editor: null, // { host } when host drawer is open
   dialog: null, // generic prompt/confirm dialog
-  menu: null, // context menu { x, y, items }
+  menu: null,
+  // in-app updater: state is idle | available | downloading | installing | restarting
+  update: { state: 'idle', version: '', notes: '', progress: null, checking: false }, // context menu { x, y, items }
 })
 
 export async function loadVault() {

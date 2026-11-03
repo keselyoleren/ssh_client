@@ -31,6 +31,7 @@ services:
       USERS: "ftpuser|ftppass"
       ADDRESS: 127.0.0.1
     ports: ["2121:21", "21000-21010:21000-21010"]
+    healthcheck: { test: ["CMD", "nc", "-z", "127.0.0.1", "21"], interval: 3s, retries: 40 }
 
   # S3-compatible server (RustFS). MinIO no longer publishes free container images.
   s3:

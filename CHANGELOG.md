@@ -27,6 +27,8 @@ First release of the desktop app. It replaces the previous FastAPI + web client.
 - S3 hosts can choose path-style or virtual-hosted URLs, needed for services such as Tencent COS.
 - More S3 presets: Tencent COS, Scaleway, Hetzner, Linode/Akamai and Oracle Cloud.
 - End-to-end tests for Azure (Azurite) and GCS (fake-gcs-server).
+- In-app updates: an **Update K-Shell** button appears in the tab bar when a new version is released; one click
+  downloads, verifies (signature), installs and restarts. *Settings → About* shows the version and can check manually.
 
 ### Fixed (found during pre-release testing)
 - macOS: <kbd>⌘W</kbd> closed the whole window instead of the current tab. The app now uses its own menu

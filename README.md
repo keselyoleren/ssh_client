@@ -32,6 +32,7 @@ idles at a fraction of the memory of Electron-based clients.
 | **Object storage** | Any S3-compatible service (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Wasabi, Backblaze B2, Tencent COS, Scaleway, Hetzner, Linode, Oracle, …) with path-style or virtual-hosted URLs, plus native **Azure Blob Storage** and **Google Cloud Storage** (service-account key). Share links: pre-signed for S3, read-only SAS for Azure, signed URL for GCS (needs a service-account key; not yet tested against real GCS) |
 | **Port forwarding** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) tunnels, with optional auto-start |
 | **Snippets** | Save commands, paste them into a terminal, or run them on many hosts at once with per-host output |
+| **Updates** | Signed in-app updates: an **Update K-Shell** button appears when a new version is out, and one click installs it and restarts |
 | **Everything else** | Command palette (<kbd>⌘K</kbd>) with quick connect `user@host:port`, encrypted vault backup and restore |
 
 ## Install

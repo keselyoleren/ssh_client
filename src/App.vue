@@ -2,6 +2,7 @@
 import { onMounted, onBeforeUnmount, computed } from 'vue'
 import { store, loadVault, openLocal, closeTab, activeTab, splitFocused, err } from './lib/store'
 import { api } from './lib/api'
+import { startUpdateChecks } from './lib/updater'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
 import HostsView from './views/HostsView.vue'
@@ -57,6 +58,7 @@ onMounted(async () => {
     err(e)
   }
   store.ready = true
+  startUpdateChecks()
   window.addEventListener('keydown', onKey, true)
   window.addEventListener('contextmenu', (e) => {
     if (!e.target.closest('input,textarea,.xterm')) e.preventDefault()
