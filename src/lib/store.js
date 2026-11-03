@@ -70,7 +70,7 @@ export function openSftp(host = null) {
   const tab = {
     id: uid(),
     kind: 'sftp',
-    title: host ? host.label || host.host : 'SFTP',
+    title: host ? host.label || host.host : 'File Manager',
     host: host ? { ...host } : null,
     color: host?.color || '',
   }

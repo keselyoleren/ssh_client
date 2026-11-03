@@ -23,12 +23,45 @@ use tauri::Manager;
 
 use commands::{files, forwards, system, terminal as term, vault as v};
 
+/// macOS menu bar. It mirrors Tauri's default menu but leaves out
+/// "Close Window" (⌘W), so ⌘W reaches the UI and closes the current tab
+/// instead of the whole window.
+#[cfg(target_os = "macos")]
+fn macos_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{MenuBuilder, SubmenuBuilder};
+    let app_menu = SubmenuBuilder::new(app, "K-Shell")
+        .about(None)
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+    let edit = SubmenuBuilder::new(app, "Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let window = SubmenuBuilder::new(app, "Window").minimize().maximize().separator().fullscreen().build()?;
+    MenuBuilder::new(app).items(&[&app_menu, &edit, &window]).build()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_menu(macos_menu(app.handle())?)?;
+
             let dir = app.path().app_data_dir()?;
             vault::migrate_legacy_dir(&dir);
             let vault = vault::Vault::load(dir).map_err(|e| anyhow::anyhow!(e))?;

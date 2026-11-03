@@ -453,6 +453,7 @@ export default { directives: { focus: { mounted: (el) => el.focus() } } }
 .empty.err {
   flex-direction: column;
   color: var(--danger);
+  -webkit-user-select: text;
   user-select: text;
 }
 .spin {

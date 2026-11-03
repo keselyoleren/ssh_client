@@ -36,10 +36,12 @@ idles at a fraction of the memory of Electron-based clients.
 
 ## Install
 
-Pre-built installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are published on the
-[Releases](https://github.com/keselyoleren/ssh_client/releases) page.
+Installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are built by the release workflow and published on
+the [Releases](https://github.com/keselyoleren/ssh_client/releases) page. Until the first release is out, build from
+source as described below.
 
-> **macOS:** builds are not notarised yet. On first launch, right-click the app and choose **Open**.
+> **macOS:** builds are not notarised yet. On first launch, open the app once, then go to
+> **System Settings → Privacy & Security** and click **Open Anyway**.
 
 ## Build from source
 
@@ -58,16 +60,16 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for per-OS setup, testing and deb
 
 ## Keyboard shortcuts
 
-On Windows and Linux, replace <kbd>⌘</kbd> with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>.
-
-| Shortcut | Action |
-|---|---|
-| <kbd>⌘K</kbd> | Command palette / quick connect |
-| <kbd>⌘T</kbd> | New local terminal |
-| <kbd>⌘W</kbd> | Close tab |
-| <kbd>⌘D</kbd> / <kbd>⇧⌘D</kbd> | Split right / split down |
-| <kbd>⌘F</kbd> | Find in terminal |
-| <kbd>⌘1</kbd> … <kbd>⌘9</kbd> | Switch tab (<kbd>⌘1</kbd> = Vault) |
+| macOS | Windows / Linux | Action |
+|---|---|---|
+| <kbd>⌘K</kbd> | <kbd>Ctrl+Shift+K</kbd> | Command palette / quick connect |
+| <kbd>⌘T</kbd> | <kbd>Ctrl+Shift+T</kbd> | New local terminal |
+| <kbd>⌘W</kbd> | <kbd>Ctrl+Shift+W</kbd> | Close tab |
+| <kbd>⌘D</kbd> | <kbd>Ctrl+Shift+D</kbd> | Split right |
+| <kbd>⇧⌘D</kbd> | <kbd>Ctrl+Shift+E</kbd> | Split down |
+| <kbd>⌘F</kbd> | <kbd>Ctrl+Shift+F</kbd> | Find in terminal |
+| <kbd>⌘1</kbd> | <kbd>Ctrl+Shift+1</kbd> | Host list (Vault) |
+| <kbd>⌘2</kbd> … <kbd>⌘9</kbd> | <kbd>Ctrl+Shift+2</kbd> … <kbd>9</kbd> | Switch to an open tab |
 
 ## Where is my data?
 

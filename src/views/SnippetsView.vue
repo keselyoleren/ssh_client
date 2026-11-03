@@ -187,6 +187,7 @@ pre {
   padding: 8px 10px;
   max-height: 120px;
   overflow: auto;
+  -webkit-user-select: text;
   user-select: text;
 }
 .cmd {

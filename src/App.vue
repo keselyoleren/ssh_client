@@ -37,8 +37,9 @@ function onKey(e) {
     if (store.active !== 'vault') closeTab(store.active)
   } else if (k === 'd') splitFocused(e.shiftKey && store.platform.os === 'macos' ? 'col' : 'row')
   else if (k === 'e') splitFocused('col')
-  else if (/^[1-9]$/.test(k)) {
-    const n = +k
+  // Use the physical key: with Shift held (Windows/Linux), e.key is '!', '@', … instead of a digit.
+  else if (/^Digit[1-9]$/.test(e.code)) {
+    const n = +e.code.slice(5)
     store.active = n === 1 ? 'vault' : store.tabs[n - 2]?.id || store.active
   } else handled = false
   if (handled) {

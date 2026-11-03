@@ -111,6 +111,7 @@ textarea {
   font-size: 12.5px;
   line-height: 1.55;
   tab-size: 4;
+  -webkit-user-select: text;
   user-select: text;
 }
 </style>

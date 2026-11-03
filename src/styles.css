@@ -58,6 +58,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
+  -webkit-user-select: none;
   user-select: none;
 }
 input,
@@ -161,6 +162,7 @@ button {
   border: 1px solid var(--line);
   background: var(--bg);
   outline: none;
+  -webkit-user-select: text;
   user-select: text;
 }
 .textarea {

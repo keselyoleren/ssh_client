@@ -107,6 +107,7 @@ export default {
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   animation: slide 0.18s;
+  -webkit-user-select: text;
   user-select: text;
   pointer-events: auto;
 }
