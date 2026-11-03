@@ -141,9 +141,9 @@ K-Shell uses [tauri-plugin-updater](https://v2.tauri.app/plugin/updater/):
   launch and then every six hours (release builds only). *Settings → About → Check for updates* checks on demand.
 - When a newer version exists, an **Update K-Shell** button appears in the tab bar. Clicking it downloads the update,
   verifies its signature, installs it and restarts the app.
-- `latest.json` and the signed update bundles (`.app.tar.gz` on macOS, the `.exe`/`.msi` installers on Windows,
-  `.AppImage` on Linux) are created by the Release workflow. `.deb` and `.rpm` installs can't update themselves.
-  Those users download the new package from the website.
+- `latest.json` and the signed update bundles are created by the Release workflow: `.app.tar.gz` on macOS, the
+  `.exe`/`.msi` installers on Windows, and `.AppImage`, `.deb` and `.rpm` on Linux. The updater picks the bundle that
+  matches how K-Shell was installed. So far the update flow has only been tested on macOS.
 
 Update bundles are signed with a private key. The matching **public** key is in `src-tauri/tauri.conf.json`
 (`plugins.updater.pubkey`). CI reads the private key from two repository secrets:
