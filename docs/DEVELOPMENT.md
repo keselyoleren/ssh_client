@@ -78,7 +78,7 @@ cancellation. They need no network.
 | `kshell-ssh` | 2222 | `tester` / `secret` | SSH, SFTP, keys, forwarding |
 | `kshell-ssh2` | internal only | `inner` / `inner` | jump host target |
 | `kshell-ftp` | 2121 | `ftpuser` / `ftppass` | FTP |
-| `kshell-minio` | 9000 | `minioadmin` / `minioadmin` | S3 |
+| `kshell-s3` | 9000 | `rustfsadmin` / `rustfsadmin` | S3 ([RustFS](https://github.com/rustfs/rustfs), MinIO-compatible) |
 | `kshell-azurite` | 10000 | `devstoreaccount1` / well-known dev key | Azure Blob (`tests/object_storage.rs`) |
 | `kshell-fake-gcs` | 4443 | none | Google Cloud Storage (`tests/object_storage.rs`) |
 

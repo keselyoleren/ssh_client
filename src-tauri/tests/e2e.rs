@@ -1,4 +1,4 @@
-//! End-to-end tests against real servers (SSH + jump host, FTP, MinIO).
+//! End-to-end tests against real servers (SSH + jump host, FTP, an S3-compatible server).
 //!
 //! They are `#[ignore]`d by default. Start the servers and run them with:
 //!
@@ -31,6 +31,12 @@ macro_rules! check {
             Err(e) => panic!("✖ {}: {}", $name, e),
         }
     }};
+}
+
+/// True when `s` contains an HTTP status code (2xx-4xx), i.e. a server answered.
+fn http_answered(s: &str) -> bool {
+    s.split(|c: char| !c.is_ascii_digit())
+        .any(|t| t.len() == 3 && matches!(t.as_bytes()[0], b'2' | b'3' | b'4'))
 }
 
 fn shell(cols: u16, rows: u16, startup: &str) -> ShellOptions {
@@ -216,12 +222,15 @@ async fn end_to_end() {
             "%{http_code}",
             "--socks5-hostname",
             "127.0.0.1:11080",
-            "http://kshell-minio:9000/minio/health/live",
+            "http://kshell-s3:9000/",
         ])
         .output()
         .unwrap();
     let code = String::from_utf8_lossy(&curl.stdout).to_string();
-    check!("HTTP through SOCKS5 = 200", if code == "200" { Ok(()) } else { Err(code) });
+    check!(
+        "HTTP through SOCKS5 reaches the S3 server",
+        if http_answered(&code) { Ok(()) } else { Err(code) }
+    );
     let rf = Forward {
         id: "f3".into(),
         kind: "remote".into(),
@@ -232,8 +241,9 @@ async fn end_to_end() {
         ..Default::default()
     };
     check!("start remote forward", fw.start(rf, conn.clone()).await);
-    let (o, _) = conn.exec("curl -s -o /dev/null -w '%{http_code}' http://localhost:19000/minio/health/live || wget -q -S -O /dev/null http://localhost:19000/minio/health/live 2>&1 | head -1").await.unwrap();
-    check!("server reaches local MinIO via -R", if o.contains("200") { Ok(()) } else { Err(o) });
+    let (o, _) = conn.exec("curl -s -o /dev/null -w '%{http_code}' http://localhost:19000/ || wget -S -O /dev/null http://localhost:19000/ 2>&1 | grep HTTP/ | head -1").await.unwrap();
+    // Any HTTP status from the S3 server (it answers 403 to anonymous requests) proves the tunnel works.
+    check!("server reaches local S3 via -R", if http_answered(&o) { Ok(()) } else { Err(o) });
     fw.stop("f1").await;
     fw.stop("f2").await;
     fw.stop("f3").await;
@@ -302,14 +312,17 @@ async fn end_to_end() {
         protocol: "s3".into(),
         endpoint: "http://127.0.0.1:9000".into(),
         region: "us-east-1".into(),
-        access_key: "minioadmin".into(),
-        secret_key: "minioadmin".into(),
+        access_key: "rustfsadmin".into(),
+        secret_key: "rustfsadmin".into(),
         path_style: true,
         ..Default::default()
     };
-    {
+    let s3fs = check!("open s3", Fs::s3(&s3h));
+    // The S3 container may still be starting: retry creating the bucket for up to 60 s.
+    let mut ready = false;
+    for _ in 0..60 {
         let creds =
-            s3::creds::Credentials::new(Some("minioadmin"), Some("minioadmin"), None, None, None).unwrap();
+            s3::creds::Credentials::new(Some("rustfsadmin"), Some("rustfsadmin"), None, None, None).unwrap();
         let region =
             s3::Region::Custom { region: "us-east-1".into(), endpoint: "http://127.0.0.1:9000".into() };
         let _ = s3::Bucket::create_with_path_style(
@@ -319,10 +332,13 @@ async fn end_to_end() {
             s3::BucketConfiguration::default(),
         )
         .await;
+        if s3fs.list("/").await.map(|b| b.iter().any(|b| b.name == "kshell-smoke")).unwrap_or(false) {
+            ready = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let s3fs = check!("open s3", Fs::s3(&s3h));
-    let buckets = check!("list buckets", s3fs.list("/").await);
-    assert!(buckets.iter().any(|b| b.name == "kshell-smoke"));
+    check!("S3 server ready, bucket created", if ready { Ok(()) } else { Err("bucket never appeared") });
     exercise("S3", &s3fs, "/kshell-smoke", &local_dir, &big).await;
     s3fs.write_text("/kshell-smoke/share.txt", "x").await.unwrap();
     let url = check!("presign", s3fs.presign("/kshell-smoke/share.txt", 600).await);
