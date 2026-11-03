@@ -63,5 +63,8 @@ jobs:
         working-directory: src-tauri
       - run: cargo test --test object_storage -- --ignored --nocapture
         working-directory: src-tauri
+      - name: Test server logs
+        if: failure()
+        run: docker compose -f tests/servers/docker-compose.yml logs --no-color --tail 80
       - if: always()
         run: docker compose -f tests/servers/docker-compose.yml down
