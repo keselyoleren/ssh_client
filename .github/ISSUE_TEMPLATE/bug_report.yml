@@ -1,0 +1,57 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Never paste passwords, private keys or tokens.**
+        Security issues: please use a private advisory instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add an SFTP host with …
+        2. Drag a folder into …
+        3. See error …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Terminal / SSH, File manager (SFTP), FTP / FTPS, S3 / object storage, Port forwarding, Keychain, Hosts / vault, Settings / UI, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: K-Shell version
+      placeholder: 0.1.0 (Settings page footer)
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.1 (Apple Silicon) / Windows 11 / Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server side (if relevant)
+      placeholder: OpenSSH 9.6 on Debian 12, MinIO RELEASE.2025-…, vsftpd 3.0.5
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error message or logs
+      render: text

@@ -1,42 +1,94 @@
-# SSH Client API
+<div align="center">
 
-This is a FastAPI application that provides an API for managing SSH connections and users. It uses a PostgreSQL database to store user information.
+<img src="src-tauri/icons/128x128@2x.png" width="96" alt="K-Shell logo" />
+
+# K-Shell
+
+**A lightweight, open-source SSH, SFTP, FTP and S3 client for macOS, Windows and Linux.**
+
+Manage all your servers and remote storage from one fast, native app: no account, no cloud and no telemetry.
+
+[Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [Docs](#documentation) · [Contributing](CONTRIBUTING.md)
+
+</div>
+
+---
+
+K-Shell is a modern take on the Termius-style workflow, built with **Rust + [Tauri 2](https://tauri.app)** for the
+networking core and **Vue 3 + [xterm.js](https://xtermjs.org)** (WebGL) for the UI. A release build is about **8 MB** and
+idles at a fraction of the memory of Electron-based clients.
 
 ## Features
 
-*   **Web-based SSH Client**: Full-featured terminal in your browser.
-*   **Split View**: Drag and drop terminal tabs to create split views (vertical/horizontal) for multitasking.
-*   **User Management**: Secure user registration, login, and MFA support.
-*   **Host Management**: Save and organize your SSH hosts with labels and groups.
-*   **Themes**: Customizable terminal themes (Hacker Blue, Ubuntu, etc.).
-*   **Dockerized**: Easy deployment with Docker Compose.
+| Area | What you get |
+|---|---|
+| **Hosts** | Groups, tags, colours, automatic OS detection, search, recent hosts, grid/list view, duplicate, test connection, import from `~/.ssh/config` |
+| **Terminal** | Tabs, split panes (side by side / stacked, resizable), find, copy-on-select, right-click paste, 9 colour themes, startup command, one-key reconnect, local shell |
+| **Authentication** | Password, keyboard-interactive, keys from the built-in keychain, ssh-agent / Pageant, default `~/.ssh/id_*` keys |
+| **Jump hosts** | ProxyJump chains (`laptop → bastion → … → target`) |
+| **Security** | Trust-on-first-use host keys with mismatch blocking, honours `~/.ssh/known_hosts`, vault encrypted with XChaCha20-Poly1305 and its key kept in the OS keychain |
+| **Keychain** | Generate Ed25519 / ECDSA / RSA-4096 keys (optional passphrase), import, copy public key, install on a server (`ssh-copy-id`) |
+| **File manager** | Dual pane between **any** pair of Local / SFTP / FTP / FTPS / S3; drag between panes, drop files from your OS, recursive folders, parallel transfer queue with speed and cancel, rename, delete, chmod, built-in text editor |
+| **Object storage** | AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Wasabi, Backblaze B2, Google Cloud Storage (S3 API), plus pre-signed share links |
+| **Port forwarding** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) tunnels, with optional auto-start |
+| **Snippets** | Save commands, paste them into a terminal, or run them on many hosts at once with per-host output |
+| **Everything else** | Command palette (<kbd>⌘K</kbd>) with quick connect `user@host:port`, encrypted vault backup and restore |
 
-## Screenshots
+## Install
 
-![Split View](docs/screenshots/splitview.png)
+Pre-built installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are published on the
+[Releases](https://github.com/keselyoleren/ssh_client/releases) page.
 
-## Installation and Running the Project
+> **macOS:** builds are not notarised yet. On first launch, right-click the app and choose **Open**.
 
-To run this project, you will need to have Docker and Docker Compose installed.
+## Build from source
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd ssh_cleint
-    ```
+Prerequisites: [Rust](https://rustup.rs) ≥ 1.85, [Node.js](https://nodejs.org) ≥ 20, and the
+[Tauri system dependencies](https://tauri.app/start/prerequisites/) for your OS.
 
-2.  **Run with Docker Compose:**
-    ```bash
-    docker-compose up --build
-    ```
-    This will build the containers, start the database, backend, and frontend, and automatically apply database migrations.
+```bash
+git clone https://github.com/keselyoleren/ssh_client.git kshell
+cd kshell
+npm install
+npm run app:dev      # run with hot reload
+npm run app:build    # produce an installer in src-tauri/target/release/bundle/
+```
 
-3.  **Access the Application:**
-    Open your browser and navigate to `http://localhost`.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for per-OS setup, testing and debugging tips.
 
-## Development
+## Keyboard shortcuts
 
-*   **Frontend**: Vue.js 3 + Vite (Port 80 in Docker, 5173 for local dev)
-*   **Backend**: FastAPI + SQLAlchemy (Port 8000)
-*   **Database**: PostgreSQL (Port 5432)
+On Windows and Linux, replace <kbd>⌘</kbd> with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>.
 
+| Shortcut | Action |
+|---|---|
+| <kbd>⌘K</kbd> | Command palette / quick connect |
+| <kbd>⌘T</kbd> | New local terminal |
+| <kbd>⌘W</kbd> | Close tab |
+| <kbd>⌘D</kbd> / <kbd>⇧⌘D</kbd> | Split right / split down |
+| <kbd>⌘F</kbd> | Find in terminal |
+| <kbd>⌘1</kbd> … <kbd>⌘9</kbd> | Switch tab (<kbd>⌘1</kbd> = Vault) |
+
+## Where is my data?
+
+Everything is stored locally in one encrypted file in your OS app-data directory:
+
+| OS | Path |
+|---|---|
+| macOS | `~/Library/Application Support/dev.keselyoleren.kshell/vault.bin` |
+| Windows | `%APPDATA%\dev.keselyoleren.kshell\vault.bin` |
+| Linux | `~/.local/share/dev.keselyoleren.kshell/vault.bin` |
+
+Development builds use `vault-dev.bin` so they never touch your real data. Use **Settings → Encrypted backup** to move
+your vault between machines.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md): how the pieces fit together, and how to add a protocol or a command
+- [Development guide](docs/DEVELOPMENT.md): setup, scripts, tests, debugging, releasing
+- [IPC reference](docs/IPC.md): every command the UI can call
+- [Contributing](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md) · [Security policy](SECURITY.md) · [Changelog](CHANGELOG.md)
+
+## License
+
+[MIT](LICENSE) © K-Shell contributors

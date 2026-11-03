@@ -1,0 +1,40 @@
+# Throw-away servers used by src-tauri/tests/e2e.rs.
+#   docker compose -f tests/servers/docker-compose.yml up -d --wait
+name: kshell-test
+
+services:
+  ssh:
+    container_name: kshell-ssh
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      PASSWORD_ACCESS: "true"
+      USER_NAME: tester
+      USER_PASSWORD: secret
+      DOCKER_MODS: linuxserver/mods:openssh-server-ssh-tunnel   # enables TCP forwarding
+    ports: ["2222:2222"]
+    healthcheck: { test: ["CMD", "nc", "-z", "localhost", "2222"], interval: 3s, retries: 40 }
+
+  # Only reachable through `ssh` — used to test jump hosts and -L forwarding.
+  ssh2:
+    container_name: kshell-ssh2
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment:
+      PASSWORD_ACCESS: "true"
+      USER_NAME: inner
+      USER_PASSWORD: inner
+    healthcheck: { test: ["CMD", "nc", "-z", "localhost", "2222"], interval: 3s, retries: 40 }
+
+  ftp:
+    container_name: kshell-ftp
+    image: delfer/alpine-ftp-server
+    environment:
+      USERS: "ftpuser|ftppass"
+      ADDRESS: 127.0.0.1
+    ports: ["2121:21", "21000-21010:21000-21010"]
+
+  minio:
+    container_name: kshell-minio
+    image: minio/minio
+    command: server /data
+    ports: ["9000:9000"]
+    healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 3s, retries: 40 }

@@ -1,0 +1,55 @@
+[package]
+name = "kshell"
+version = "0.1.0"
+description = "Lightweight cross-platform SSH / SFTP / FTP / S3 client"
+authors = ["K-Shell contributors"]
+license = "MIT"
+repository = "https://github.com/keselyoleren/ssh_client"
+rust-version = "1.85"
+edition = "2021"
+
+[lib]
+name = "kshell_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+russh = "0.65"
+russh-sftp = "2"
+suppaftp = { version = "12", features = ["tokio", "tokio-rustls-ring"] }
+rust-s3 = { version = "0.38", default-features = false, features = ["tokio-rustls-tls-ring", "fail-on-err"] }
+portable-pty = "0.9"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+rand = "0.8"
+chacha20poly1305 = "0.10"
+dirs = "6"
+futures = "0.3"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+parking_lot = "0.12"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+webpki-roots = "1"
+argon2 = "0.5"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+# Optimise dependencies even in debug builds: crypto (Argon2, ChaCha, SSH
+# ciphers) is painfully slow unoptimised. Our own crate stays fast to compile.
+[profile.dev.package."*"]
+opt-level = 2
