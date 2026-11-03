@@ -131,7 +131,42 @@ Output goes to `src-tauri/target/release/bundle/`.
    git tag v0.2.0 && git push origin v0.2.0
    ```
 4. The **Release** workflow builds macOS (universal), Windows and Linux installers into a draft GitHub release.
-   Review it and publish.
+   Review it and publish. Installed copies of K-Shell will offer the update within a few hours.
+
+### In-app updates
+
+K-Shell uses [tauri-plugin-updater](https://v2.tauri.app/plugin/updater/):
+
+- The app checks `https://github.com/keselyoleren/ssh_client/releases/latest/download/latest.json` five seconds after
+  launch and then every six hours (release builds only). *Settings → About → Check for updates* checks on demand.
+- When a newer version exists, an **Update K-Shell** button appears in the tab bar. Clicking it downloads the update,
+  verifies its signature, installs it and restarts the app.
+- `latest.json` and the signed update bundles (`.app.tar.gz` on macOS, the `.exe`/`.msi` installers on Windows,
+  `.AppImage` on Linux) are created by the Release workflow. `.deb` and `.rpm` installs can't update themselves.
+  Those users download the new package from the website.
+
+Update bundles are signed with a private key. The matching **public** key is in `src-tauri/tauri.conf.json`
+(`plugins.updater.pubkey`). CI reads the private key from two repository secrets:
+
+| Secret | Value |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | contents of the private key file |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | its password |
+
+> **Keep a backup of the private key and its password.** If they are lost, existing installs can no longer be updated
+> and every user has to reinstall K-Shell by hand. Never commit them to the repository.
+
+To test the updater locally, build an "old" and a "new" version that point at a local server:
+
+```bash
+export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/kshell-updater.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="…"
+CFG='{"plugins":{"updater":{"endpoints":["http://127.0.0.1:8777/latest.json"],"dangerousInsecureTransportProtocol":true}}}'
+./node_modules/.bin/tauri build --bundles app --config "$CFG"     # keep a copy of this K-Shell.app
+./node_modules/.bin/tauri build --bundles app --config "$(echo "$CFG" | sed 's/^{/{"version":"0.1.1",/')"
+```
+
+Serve a `latest.json` next to the second build's `K-Shell.app.tar.gz` (with the contents of its `.sig` file as
+`signature`), then start the first build.
 
 ## Updating the icon
 

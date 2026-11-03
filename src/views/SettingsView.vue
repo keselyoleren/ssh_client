@@ -1,5 +1,7 @@
 <script setup>
-import { reactive, watch, ref } from 'vue'
+import { reactive, watch, ref, onMounted } from 'vue'
+import { getVersion } from '@tauri-apps/api/app'
+import { checkForUpdate, installUpdate } from '../lib/updater'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { store, loadVault, toast, err, prompt } from '../lib/store'
 import { api } from '../lib/api'
@@ -25,6 +27,13 @@ watch(
   },
   { deep: true },
 )
+
+const version = ref('')
+onMounted(async () => {
+  try {
+    version.value = await getVersion()
+  } catch {}
+})
 
 const preview = ref('user@server:~$ ls -la\n')
 const fonts = [
@@ -248,6 +257,30 @@ async function importConfig() {
         </div>
       </div>
 
+      <div class="section-title">About</div>
+      <div class="card pad">
+        <div class="set">
+          <div>
+            <b>K-Shell {{ version }}</b>
+            <div class="dim" v-if="store.update.state === 'available'">
+              Version {{ store.update.version }} is available
+            </div>
+            <div class="dim" v-else>Updates are checked automatically every few hours</div>
+          </div>
+          <button v-if="store.update.state === 'available'" class="btn primary" @click="installUpdate">
+            Update to {{ store.update.version }}
+          </button>
+          <button
+            v-else
+            class="btn"
+            :disabled="store.update.checking || store.update.state !== 'idle'"
+            @click="checkForUpdate({ manual: true })"
+          >
+            {{ store.update.checking ? 'Checking…' : 'Check for updates' }}
+          </button>
+        </div>
+      </div>
+
       <div class="section-title">Shortcuts</div>
       <div class="card pad keys">
         <!-- [macOS, Windows/Linux, action]: keep in sync with onKey() in App.vue -->
@@ -269,7 +302,7 @@ async function importConfig() {
           ><kbd>{{ store.platform.os === 'macos' ? mac : other }}</kbd>
         </div>
       </div>
-      <p class="dim" style="text-align: center; margin-top: 24px">K-Shell 0.1.0 · Tauri + Rust</p>
+      <p class="dim" style="text-align: center; margin-top: 24px">K-Shell {{ version }} · Tauri + Rust</p>
     </div>
   </div>
 </template>

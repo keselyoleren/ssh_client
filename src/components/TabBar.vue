@@ -1,6 +1,8 @@
 <script setup>
 import { store, closeTab, openLocal, confirm } from '../lib/store'
 import Icon from './Icon.vue'
+import { installUpdate } from '../lib/updater'
+import { computed } from 'vue'
 
 let dragId = null
 function onDrop(target) {
@@ -22,6 +24,14 @@ async function close(t) {
   }
   closeTab(t.id)
 }
+
+const updateLabel = computed(() => {
+  const u = store.update
+  if (u.state === 'downloading') return u.progress == null ? 'Downloading…' : `Downloading ${u.progress}%`
+  if (u.state === 'installing') return 'Installing…'
+  if (u.state === 'restarting') return 'Restarting…'
+  return 'Update K-Shell'
+})
 </script>
 
 <template>
@@ -54,6 +64,15 @@ async function close(t) {
         <Icon name="plus" :size="15" />
       </button>
     </div>
+    <button
+      v-if="store.update.state !== 'idle'"
+      class="update-btn"
+      :disabled="store.update.state !== 'available'"
+      :title="`K-Shell ${store.update.version} is available`"
+      @click="installUpdate"
+    >
+      {{ updateLabel }}
+    </button>
     <button class="iconbtn" title="Quick connect (⌘K)" @click="store.palette = true">
       <Icon name="search" :size="15" />
     </button>
@@ -61,6 +80,26 @@ async function close(t) {
 </template>
 
 <style scoped>
+.update-btn {
+  flex: none;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.update-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.update-btn:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
 .tabs {
   height: 44px;
   flex: none;
