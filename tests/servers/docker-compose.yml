@@ -32,12 +32,14 @@ services:
       ADDRESS: 127.0.0.1
     ports: ["2121:21", "21000-21010:21000-21010"]
 
-  minio:
-    container_name: kshell-minio
-    image: quay.io/minio/minio
-    command: server /data
+  # S3-compatible server (RustFS). MinIO no longer publishes free container images.
+  s3:
+    container_name: kshell-s3
+    image: rustfs/rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
     ports: ["9000:9000"]
-    healthcheck: { test: ["CMD", "mc", "ready", "local"], interval: 3s, retries: 40 }
 
   # Azure Blob Storage emulator (Microsoft). Account: devstoreaccount1 (well-known dev key).
   azurite:
