@@ -270,7 +270,7 @@ function edit(side, e) {
         </div>
       </div>
     </div>
-    <div v-if="ghost.on" class="ghost" :style="{ left: ghost.x + 12 + 'px', top: ghost.y + 8 + 'px' }">
+    <div v-if="ghost.on" class="drag-ghost" :style="{ left: ghost.x + 12 + 'px', top: ghost.y + 8 + 'px' }">
       <Icon name="file" :size="13" /> {{ ghost.text }}
     </div>
     <TextEditor v-if="editing" :side="editing.side" :entry="editing.entry" @close="closeEditor" />
@@ -356,6 +356,7 @@ function edit(side, e) {
   color: var(--danger);
   font-size: 11px;
   margin-top: 3px;
+  -webkit-user-select: text;
   user-select: text;
 }
 .st {
@@ -377,7 +378,7 @@ function edit(side, e) {
 .icon.error {
   color: var(--danger);
 }
-.ghost {
+.drag-ghost {
   position: fixed;
   z-index: 90;
   pointer-events: none;

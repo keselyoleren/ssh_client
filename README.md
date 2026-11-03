@@ -28,18 +28,20 @@ idles at a fraction of the memory of Electron-based clients.
 | **Jump hosts** | ProxyJump chains (`laptop → bastion → … → target`) |
 | **Security** | Trust-on-first-use host keys with mismatch blocking, honours `~/.ssh/known_hosts`, vault encrypted with XChaCha20-Poly1305 and its key kept in the OS keychain |
 | **Keychain** | Generate Ed25519 / ECDSA / RSA-4096 keys (optional passphrase), import, copy public key, install on a server (`ssh-copy-id`) |
-| **File manager** | Dual pane between **any** pair of Local / SFTP / FTP / FTPS / S3; drag between panes, drop files from your OS, recursive folders, parallel transfer queue with speed and cancel, rename, delete, chmod, built-in text editor |
-| **Object storage** | AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Wasabi, Backblaze B2, Google Cloud Storage (S3 API), plus pre-signed share links |
+| **File manager** | Dual pane between **any** pair of Local / SFTP / FTP / FTPS / S3 / Azure Blob / GCS; drag between panes, drop files from your OS, recursive folders, parallel transfer queue with speed and cancel, rename, delete, chmod, built-in text editor |
+| **Object storage** | Any S3-compatible service (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Wasabi, Backblaze B2, Tencent COS, Scaleway, Hetzner, Linode, Oracle, …) with path-style or virtual-hosted URLs, plus native **Azure Blob Storage** and **Google Cloud Storage** (service-account key). Share links: pre-signed for S3, read-only SAS for Azure, signed URL for GCS (needs a service-account key; not yet tested against real GCS) |
 | **Port forwarding** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) tunnels, with optional auto-start |
 | **Snippets** | Save commands, paste them into a terminal, or run them on many hosts at once with per-host output |
 | **Everything else** | Command palette (<kbd>⌘K</kbd>) with quick connect `user@host:port`, encrypted vault backup and restore |
 
 ## Install
 
-Pre-built installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are published on the
-[Releases](https://github.com/keselyoleren/ssh_client/releases) page.
+Installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are built by the release workflow and published on
+the [Releases](https://github.com/keselyoleren/ssh_client/releases) page. Until the first release is out, build from
+source as described below.
 
-> **macOS:** builds are not notarised yet. On first launch, right-click the app and choose **Open**.
+> **macOS:** builds are not notarised yet. On first launch, open the app once, then go to
+> **System Settings → Privacy & Security** and click **Open Anyway**.
 
 ## Build from source
 
@@ -58,16 +60,16 @@ See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for per-OS setup, testing and deb
 
 ## Keyboard shortcuts
 
-On Windows and Linux, replace <kbd>⌘</kbd> with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>.
-
-| Shortcut | Action |
-|---|---|
-| <kbd>⌘K</kbd> | Command palette / quick connect |
-| <kbd>⌘T</kbd> | New local terminal |
-| <kbd>⌘W</kbd> | Close tab |
-| <kbd>⌘D</kbd> / <kbd>⇧⌘D</kbd> | Split right / split down |
-| <kbd>⌘F</kbd> | Find in terminal |
-| <kbd>⌘1</kbd> … <kbd>⌘9</kbd> | Switch tab (<kbd>⌘1</kbd> = Vault) |
+| macOS | Windows / Linux | Action |
+|---|---|---|
+| <kbd>⌘K</kbd> | <kbd>Ctrl+Shift+K</kbd> | Command palette / quick connect |
+| <kbd>⌘T</kbd> | <kbd>Ctrl+Shift+T</kbd> | New local terminal |
+| <kbd>⌘W</kbd> | <kbd>Ctrl+Shift+W</kbd> | Close tab |
+| <kbd>⌘D</kbd> | <kbd>Ctrl+Shift+D</kbd> | Split right |
+| <kbd>⇧⌘D</kbd> | <kbd>Ctrl+Shift+E</kbd> | Split down |
+| <kbd>⌘F</kbd> | <kbd>Ctrl+Shift+F</kbd> | Find in terminal |
+| <kbd>⌘1</kbd> | <kbd>Ctrl+Shift+1</kbd> | Host list (Vault) |
+| <kbd>⌘2</kbd> … <kbd>⌘9</kbd> | <kbd>Ctrl+Shift+2</kbd> … <kbd>9</kbd> | Switch to an open tab |
 
 ## Where is my data?
 

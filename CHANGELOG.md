@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Azure Blob Storage hosts (account key or SAS token). Share links are read-only SAS URLs (`sp=r`).
+- Google Cloud Storage hosts using a service-account key (JSON), or anonymous access for public buckets.
+- S3 hosts can choose path-style or virtual-hosted URLs, needed for services such as Tencent COS.
+- More S3 presets: Tencent COS, Scaleway, Hetzner, Linode/Akamai and Oracle Cloud.
+- End-to-end tests for Azure (Azurite) and GCS (fake-gcs-server).
+
+### Fixed
+- macOS: <kbd>⌘W</kbd> closed the whole window instead of the current tab. The app now uses its own menu
+  without "Close Window".
+- Windows/Linux: <kbd>Ctrl+Shift+1</kbd>…<kbd>9</kbd> did nothing, because Shift turns the key into a symbol.
+  Digits are now matched by physical key.
+- macOS: dragging files in the File Manager selected all text on the page (missing `-webkit-user-select`).
+- The "Clear finished" button in the Transfers panel overlapped the panel title.
+- The File Manager tab was labelled "SFTP" even when both panes were local.
+- Shortcut lists in Settings and the README showed the wrong split-down shortcut on Windows/Linux.
+
 ## [0.1.0] - 2026-11-03
 
 First release of the desktop app. It replaces the previous FastAPI + web client.

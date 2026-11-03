@@ -61,5 +61,7 @@ jobs:
       - run: docker compose -f tests/servers/docker-compose.yml up -d --wait
       - run: cargo test --test e2e -- --ignored --nocapture
         working-directory: src-tauri
+      - run: cargo test --test object_storage -- --ignored --nocapture
+        working-directory: src-tauri
       - if: always()
         run: docker compose -f tests/servers/docker-compose.yml down

@@ -250,23 +250,23 @@ async function importConfig() {
 
       <div class="section-title">Shortcuts</div>
       <div class="card pad keys">
+        <!-- [macOS, Windows/Linux, action]: keep in sync with onKey() in App.vue -->
         <div
-          v-for="[k, d] in [
-            ['⌘K', 'Quick connect / command palette'],
-            ['⌘T', 'New local terminal'],
-            ['⌘W', 'Close tab'],
-            ['⌘D', 'Split right'],
-            ['⇧⌘D', 'Split down'],
-            ['⌘F', 'Find in terminal'],
-            ['⌘1…9', 'Switch tab'],
+          v-for="[mac, other, d] in [
+            ['⌘K', 'Ctrl+Shift+K', 'Command palette / quick connect'],
+            ['⌘T', 'Ctrl+Shift+T', 'New local terminal'],
+            ['⌘W', 'Ctrl+Shift+W', 'Close tab'],
+            ['⌘D', 'Ctrl+Shift+D', 'Split right'],
+            ['⇧⌘D', 'Ctrl+Shift+E', 'Split down'],
+            ['⌘F', 'Ctrl+Shift+F', 'Find in terminal'],
+            ['⌘1', 'Ctrl+Shift+1', 'Host list'],
+            ['⌘2…9', 'Ctrl+Shift+2…9', 'Switch tab'],
           ]"
-          :key="k"
+          :key="d"
           class="set"
         >
           <span>{{ d }}</span
-          ><kbd>{{
-            store.platform.os === 'macos' ? k : k.replace('⇧⌘', 'Ctrl+Shift+').replace('⌘', 'Ctrl+Shift+')
-          }}</kbd>
+          ><kbd>{{ store.platform.os === 'macos' ? mac : other }}</kbd>
         </div>
       </div>
       <p class="dim" style="text-align: center; margin-top: 24px">K-Shell 0.1.0 · Tauri + Rust</p>

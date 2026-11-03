@@ -27,6 +27,8 @@ function pick(name) {
 
 export function badge(h) {
   if (h.protocol === 's3') return { bg: '#C27C2C', text: 'S3', icon: 'cloud' }
+  if (h.protocol === 'azblob') return { bg: '#2F6DB5', text: 'AZ', icon: 'cloud' }
+  if (h.protocol === 'gcs') return { bg: '#3E7C7B', text: 'GCS', icon: 'cloud' }
   if (h.protocol === 'ftp' || h.protocol === 'ftps') return { bg: '#6B5B95', text: 'FTP', icon: 'folder' }
   if (h.color) return { bg: h.color, text: (h.label || h.host || '?')[0].toUpperCase() }
   const o = OS[h.os]
@@ -40,14 +42,32 @@ export const PROTOCOLS = [
   { id: 'ssh', label: 'SSH / SFTP', port: 22 },
   { id: 'ftp', label: 'FTP', port: 21 },
   { id: 'ftps', label: 'FTPS (explicit TLS)', port: 21 },
-  { id: 's3', label: 'S3 / Object Storage', port: 0 },
+  { id: 's3', label: 'S3-compatible', port: 0 },
+  { id: 'azblob', label: 'Azure Blob', port: 0 },
+  { id: 'gcs', label: 'Google Cloud Storage', port: 0 },
 ]
+
+/** Protocols that browse buckets/containers instead of a server's file system. */
+export const OBJECT_PROTOCOLS = ['s3', 'azblob', 'gcs']
+export const isObjectStorage = (protocol) => OBJECT_PROTOCOLS.includes(protocol)
+// `url`: 'path' = https://endpoint/bucket, 'virtual' = https://bucket.endpoint.
+// Values in <angle brackets> differ per account or region and must be filled in.
 export const S3_PRESETS = [
-  { label: 'AWS S3', endpoint: '', region: 'us-east-1' },
-  { label: 'Cloudflare R2', endpoint: 'https://<account-id>.r2.cloudflarestorage.com', region: 'auto' },
-  { label: 'MinIO', endpoint: 'http://localhost:9000', region: 'us-east-1' },
-  { label: 'DigitalOcean Spaces', endpoint: 'https://sgp1.digitaloceanspaces.com', region: 'sgp1' },
-  { label: 'Wasabi', endpoint: 'https://s3.ap-southeast-1.wasabisys.com', region: 'ap-southeast-1' },
-  { label: 'Backblaze B2', endpoint: 'https://s3.us-west-004.backblazeb2.com', region: 'us-west-004' },
-  { label: 'Google Cloud Storage', endpoint: 'https://storage.googleapis.com', region: 'auto' },
+  { label: 'AWS S3', endpoint: '', region: 'us-east-1', url: 'virtual' },
+  { label: 'Cloudflare R2', endpoint: 'https://<account-id>.r2.cloudflarestorage.com', region: 'auto', url: 'path' },
+  { label: 'MinIO', endpoint: 'http://localhost:9000', region: 'us-east-1', url: 'path' },
+  { label: 'DigitalOcean Spaces', endpoint: 'https://sgp1.digitaloceanspaces.com', region: 'sgp1', url: 'path' },
+  { label: 'Wasabi', endpoint: 'https://s3.ap-southeast-1.wasabisys.com', region: 'ap-southeast-1', url: 'path' },
+  { label: 'Backblaze B2', endpoint: 'https://s3.us-west-004.backblazeb2.com', region: 'us-west-004', url: 'path' },
+  { label: 'Google Cloud (HMAC keys)', endpoint: 'https://storage.googleapis.com', region: 'auto', url: 'path' },
+  { label: 'Tencent COS', endpoint: 'https://cos.<region>.myqcloud.com', region: '<region>', url: 'virtual' },
+  { label: 'Scaleway', endpoint: 'https://s3.<region>.scw.cloud', region: '<region>', url: 'path' },
+  { label: 'Hetzner', endpoint: 'https://<location>.your-objectstorage.com', region: '<location>', url: 'path' },
+  { label: 'Linode / Akamai', endpoint: 'https://<region>.linodeobjects.com', region: '<region>', url: 'path' },
+  {
+    label: 'Oracle Cloud',
+    endpoint: 'https://<namespace>.compat.objectstorage.<region>.oraclecloud.com',
+    region: '<region>',
+    url: 'path',
+  },
 ]

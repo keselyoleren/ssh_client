@@ -18,7 +18,7 @@ rendered by the OS webview (WebKit on macOS and Linux, WebView2 on Windows) hand
 │ vault.rs     encrypted storage + data model                      │
 │ ssh.rs       connect, auth, jump hosts, host keys, pooling       │
 │ terminal.rs  SSH shells + local PTYs                             │
-│ fs/          Backend trait: local · sftp · ftp · s3              │
+│ fs/          Backend trait: local · sftp · ftp · s3 · object     │
 │ forward.rs   -L / -R / -D tunnels                                │
 │ keys.rs, ssh_config.rs                                           │
 └──────────────────────────────────────────────────────────────────┘
@@ -88,7 +88,9 @@ On the UI side, `TerminalTab.vue` flattens the split tree into absolutely positi
 Splitting or closing a pane therefore **never remounts** the other terminals, and their sessions survive.
 
 ### One file-system API
-`fs::Fs` is an enum over the backends in `fs/`. Each implements the `Backend` trait (`home`, `list`, `mkdir`,
+`fs::Fs` is an enum over the backends in `fs/`: `local`, `sftp`, `ftp` (FTP and FTPS), `s3` (any S3-compatible
+service, via rust-s3) and `object` (Azure Blob Storage and Google Cloud Storage, via
+[Apache OpenDAL](https://opendal.apache.org)). Each implements the `Backend` trait (`home`, `list`, `mkdir`,
 `rename`, `remove`, `download`, `upload`, plus optional `chmod` and `presign`). Shared behaviour sits once on `Fs`:
 sorting, `walk`, text read/write, path joining.
 

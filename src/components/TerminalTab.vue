@@ -84,6 +84,7 @@ function drag(e, g) {
 }
 .tt.dragging {
   cursor: col-resize;
+  -webkit-user-select: none;
   user-select: none;
 }
 .tt.dragging .slot {

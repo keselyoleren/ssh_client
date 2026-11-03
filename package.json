@@ -12,7 +12,7 @@
     "format": "prettier --write \"src/**/*.{js,vue,css}\"",
     "format:check": "prettier --check \"src/**/*.{js,vue,css}\"",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
-    "test:e2e": "docker compose -f tests/servers/docker-compose.yml up -d --wait && cargo test --manifest-path src-tauri/Cargo.toml --test e2e -- --ignored --nocapture; docker compose -f tests/servers/docker-compose.yml down",
+    "test:e2e": "docker compose -f tests/servers/docker-compose.yml up -d --wait && cargo test --manifest-path src-tauri/Cargo.toml --test e2e --test object_storage -- --ignored --nocapture; docker compose -f tests/servers/docker-compose.yml down",
     "check": "npm run format:check && npm run build && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test"
   },
   "dependencies": {

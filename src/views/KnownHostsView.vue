@@ -41,7 +41,9 @@ async function remove(k) {
             <div style="font-weight: 600" class="mono">
               {{ k.host }} <span class="chip">{{ k.key_type }}</span>
             </div>
-            <div class="dim mono" style="font-size: 11.5px; user-select: text">{{ k.fingerprint }}</div>
+            <div class="dim mono" style="font-size: 11.5px; -webkit-user-select: text; user-select: text">
+              {{ k.fingerprint }}
+            </div>
           </div>
           <span class="dim" style="font-size: 12px">{{ fmtTime(k.added_at) }}</span>
           <button class="iconbtn" @click="remove(k)"><Icon name="trash" /></button>

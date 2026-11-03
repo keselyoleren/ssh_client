@@ -5,6 +5,7 @@ import { store, openMenu, prompt, confirm, toast, err } from '../lib/store'
 import { join, parent, crumbs } from '../lib/paths'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import Icon from './Icon.vue'
+import { isObjectStorage } from '../lib/os'
 
 const props = defineProps({ side: Object, other: Object, name: String })
 const emit = defineEmits(['transfer', 'pick', 'edit', 'dragstart'])
@@ -154,8 +155,8 @@ function rowMenu(ev, e) {
     },
     '-',
     { label: 'Rename', icon: 'edit', action: () => rename(e) },
-    ...(s.host?.protocol !== 's3' ? [{ label: 'Permissions…', icon: 'lock', action: () => chmod(e) }] : []),
-    ...(s.host?.protocol === 's3' && !e.is_dir
+    ...(!isObjectStorage(s.host?.protocol) ? [{ label: 'Permissions…', icon: 'lock', action: () => chmod(e) }] : []),
+    ...(isObjectStorage(s.host?.protocol) && !e.is_dir
       ? [{ label: 'Copy share link', icon: 'link', action: () => share(e) }]
       : []),
     { label: 'Copy path', icon: 'copy', action: () => writeText(e.path) },
@@ -171,7 +172,7 @@ function rowMenu(ev, e) {
 function bgMenu(ev) {
   openMenu(ev, [
     { label: 'New folder', icon: 'folder', action: mkdir },
-    ...(s.host?.protocol !== 's3' ? [{ label: 'New file', icon: 'file', action: newFile }] : []),
+    { label: 'New file', icon: 'file', action: newFile },
     { label: 'Refresh', icon: 'refresh', action: () => list() },
     { label: s.hidden ? 'Hide hidden files' : 'Show hidden files', icon: 'eye', action: () => (s.hidden = !s.hidden) },
   ])
@@ -199,12 +200,12 @@ function rowDown(ev, e) {
 </script>
 
 <template>
-  <div class="fp" :class="{ noperm: s.host?.protocol === 's3' }" :data-side="name" tabindex="0" @keydown="key">
+  <div class="fp" :class="{ noperm: isObjectStorage(s.host?.protocol) }" :data-side="name" tabindex="0" @keydown="key">
     <div class="bar">
       <select class="select host" :value="s.host ? s.host.id : ''" @change="emit('pick', s, $event.target.value)">
         <option value="">💻 Local</option>
         <option v-for="h in remotes" :key="h.id" :value="h.id">
-          {{ h.protocol === 's3' ? '☁️' : h.protocol === 'ssh' ? '🖥' : '📁' }} {{ h.label || h.host }}
+          {{ isObjectStorage(h.protocol) ? '☁️' : h.protocol === 'ssh' ? '🖥' : '📁' }} {{ h.label || h.host }}
         </option>
       </select>
       <button class="iconbtn" @click="up" title="Up"><Icon name="up" :size="15" /></button>
@@ -243,7 +244,7 @@ function rowDown(ev, e) {
         <span class="c-name" @click="sortBy('name')">Name</span>
         <span class="c-size" @click="sortBy('size')">Size</span>
         <span class="c-time" @click="sortBy('mtime')">Modified</span>
-        <span class="c-perm" v-if="s.host?.protocol !== 's3'">Perms</span>
+        <span class="c-perm" v-if="!isObjectStorage(s.host?.protocol)">Perms</span>
       </div>
       <div v-if="s.connecting" class="empty"><span class="spin"></span> Connecting…</div>
       <div v-else-if="s.error" class="empty err">
@@ -267,7 +268,7 @@ function rowDown(ev, e) {
         >
         <span class="c-size">{{ e.is_dir ? '' : fmtSize(e.size) }}</span>
         <span class="c-time">{{ fmtTime(e.mtime) }}</span>
-        <span class="c-perm mono" v-if="s.host?.protocol !== 's3'">{{ fmtPerm(e.perm) }}</span>
+        <span class="c-perm mono" v-if="!isObjectStorage(s.host?.protocol)">{{ fmtPerm(e.perm) }}</span>
       </div>
       <div class="filler" @contextmenu="bgMenu" @mousedown="s.sel = []"></div>
     </div>
@@ -453,6 +454,7 @@ export default { directives: { focus: { mounted: (el) => el.focus() } } }
 .empty.err {
   flex-direction: column;
   color: var(--danger);
+  -webkit-user-select: text;
   user-select: text;
 }
 .spin {

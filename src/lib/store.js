@@ -1,5 +1,6 @@
 import { reactive, watch } from 'vue'
 import { api, uid } from './api'
+import { isObjectStorage } from './os'
 
 export const store = reactive({
   ready: false,
@@ -62,7 +63,7 @@ export function openLocal() {
 }
 
 export function connectHost(host) {
-  if (host.protocol === 'ftp' || host.protocol === 'ftps' || host.protocol === 's3') return openSftp(host)
+  if (host.protocol === 'ftp' || host.protocol === 'ftps' || isObjectStorage(host.protocol)) return openSftp(host)
   return openTerminal({ kind: 'ssh', host: { ...host } }, host.label || host.host)
 }
 
@@ -70,7 +71,7 @@ export function openSftp(host = null) {
   const tab = {
     id: uid(),
     kind: 'sftp',
-    title: host ? host.label || host.host : 'SFTP',
+    title: host ? host.label || host.host : 'File Manager',
     host: host ? { ...host } : null,
     color: host?.color || '',
   }

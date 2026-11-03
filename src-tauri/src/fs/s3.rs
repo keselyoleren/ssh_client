@@ -48,8 +48,9 @@ impl S3 {
         Ok(Self {
             region,
             creds,
-            // Custom endpoints (MinIO & co.) almost always need path-style URLs.
-            path_style: host.path_style || !host.endpoint.is_empty(),
+            // Custom endpoints (MinIO & co.) default to path-style URLs; services that only
+            // accept virtual-hosted URLs (bucket.endpoint) set `virtual_hosted`.
+            path_style: host.path_style || (!host.endpoint.is_empty() && !host.virtual_hosted),
             default_bucket: host.bucket.clone(),
         })
     }
