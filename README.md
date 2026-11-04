@@ -8,17 +8,43 @@
 
 Manage all your servers and remote storage from one fast, native app: no account, no cloud and no telemetry.
 
+[![Latest release](https://img.shields.io/github/v/release/keselyoleren/ssh_client?label=release&color=e0703c)](https://github.com/keselyoleren/ssh_client/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/keselyoleren/ssh_client/total?color=2f5d8a)](https://www.keselyoleren.com/download)
+[![License: MIT](https://img.shields.io/github/license/keselyoleren/ssh_client?color=5b7f4e)](LICENSE)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows%20%7C%20Linux-6b5b95)
+[![Stars](https://img.shields.io/github/stars/keselyoleren/ssh_client?style=social)](https://github.com/keselyoleren/ssh_client/stargazers)
+
 **[Website](https://www.keselyoleren.com)** · **[Download](https://www.keselyoleren.com/download)** · **[User guide](https://www.keselyoleren.com/docs/)**
 
 [Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [Docs](#documentation) · [Contributing](CONTRIBUTING.md)
 
+<br />
+
+<img src="docs/images/demo.gif" width="900" alt="K-Shell demo: opening a workspace, autosuggestions, dragging split panes, merging a tab, hiding the sidebar, port forwarding from a pasted ssh command and the command palette" />
+
 </div>
+
+<details>
+<summary><b>More screenshots</b></summary>
+<br />
+
+| Split panes | Workspaces | Port forwarding |
+|---|---|---|
+| <img src="docs/images/terminal.webp" alt="Three terminal panes from two workspace projects" /> | <img src="docs/images/workspaces.webp" alt="Workspaces with local project folders" /> | <img src="docs/images/port-forwarding.webp" alt="A forwarding rule filled in from a pasted ssh -L command" /> |
+
+| Hosts | File Manager | Command palette |
+|---|---|---|
+| <img src="docs/images/hosts.webp" alt="Host list grouped by environment" /> | <img src="docs/images/file-manager.webp" alt="Dual-pane file manager with a transfer" /> | <img src="docs/images/palette.webp" alt="Command palette search" /> |
+
+</details>
+
+> If K-Shell is useful to you, a ⭐ on GitHub helps other people find it.
 
 ---
 
 K-Shell is a modern take on the Termius-style workflow, built with **Rust + [Tauri 2](https://tauri.app)** for the
-networking core and **Vue 3 + [xterm.js](https://xtermjs.org)** (WebGL) for the UI. A release build is about **8 MB** and
-idles at a fraction of the memory of Electron-based clients.
+networking core and **Vue 3 + [xterm.js](https://xtermjs.org)** (WebGL) for the UI. Installers are small: about
+**4 MB** on Windows, **7 MB** as a `.deb` and **11 MB** as a universal macOS `.dmg`.
 
 ## Features
 
