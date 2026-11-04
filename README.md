@@ -20,7 +20,7 @@ Manage all your servers and remote storage from one fast, native app: no account
 
 <br />
 
-<img src="docs/images/terminal.webp" width="900" alt="K-Shell with split terminal panes" />
+<img src="docs/images/demo.gif" width="900" alt="K-Shell demo: opening a workspace, autosuggestions, dragging split panes, merging a tab, hiding the sidebar, port forwarding from a pasted ssh command and the command palette" />
 
 </div>
 
@@ -28,9 +28,13 @@ Manage all your servers and remote storage from one fast, native app: no account
 <summary><b>More screenshots</b></summary>
 <br />
 
+| Split panes | Workspaces | Port forwarding |
+|---|---|---|
+| <img src="docs/images/terminal.webp" alt="Three terminal panes from two workspace projects" /> | <img src="docs/images/workspaces.webp" alt="Workspaces with local project folders" /> | <img src="docs/images/port-forwarding.webp" alt="A forwarding rule filled in from a pasted ssh -L command" /> |
+
 | Hosts | File Manager | Command palette |
 |---|---|---|
-| <img src="docs/images/hosts.webp" alt="Host list grouped by project" /> | <img src="docs/images/file-manager.webp" alt="Dual-pane file manager with a transfer" /> | <img src="docs/images/palette.webp" alt="Command palette search" /> |
+| <img src="docs/images/hosts.webp" alt="Host list grouped by environment" /> | <img src="docs/images/file-manager.webp" alt="Dual-pane file manager with a transfer" /> | <img src="docs/images/palette.webp" alt="Command palette search" /> |
 
 </details>
 
