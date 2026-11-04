@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-04
+
 ### Added
 - Settings are split into sections (Appearance, Terminal, Keyboard shortcuts, Vault & backup, About).
 - Appearance: *System* theme that follows the OS light/dark mode, accent colour (presets or custom), interface
