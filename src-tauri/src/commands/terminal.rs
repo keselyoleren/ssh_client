@@ -5,7 +5,7 @@ use tauri::ipc::{Channel, InvokeResponseBody};
 
 use super::State;
 use crate::error::Res;
-use crate::terminal::{Cmd, ShellOptions};
+use crate::terminal::{Cmd, LocalOptions, ShellOptions};
 use crate::vault::Host;
 
 /// Open an SSH shell. Output streams to `on_data` as raw bytes; a JSON
@@ -36,15 +36,19 @@ pub async fn term_open_ssh(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // flat IPC arguments
 pub fn term_open_local(
     st: State,
     id: String,
     cols: u16,
     rows: u16,
     shell: Option<String>,
+    cwd: Option<String>,
+    startup_command: Option<String>,
     on_data: Channel<InvokeResponseBody>,
 ) -> Res<()> {
-    st.terminals.open_local(id, cols, rows, shell, on_data)
+    let opts = LocalOptions { cols, rows, shell, cwd, startup_command: startup_command.unwrap_or_default() };
+    st.terminals.open_local(id, opts, on_data)
 }
 
 #[tauri::command]

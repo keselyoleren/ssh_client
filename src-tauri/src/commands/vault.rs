@@ -2,7 +2,7 @@
 
 use super::State;
 use crate::error::{Ctx, Res};
-use crate::vault::{self, upsert, Host, Key, Settings, Snippet, VaultData};
+use crate::vault::{self, upsert, Host, Key, Settings, Snippet, VaultData, Workspace};
 use crate::{keys, ssh_config};
 
 #[tauri::command]
@@ -90,6 +90,37 @@ pub fn snippet_delete(st: State, id: String) -> Res<()> {
 #[tauri::command]
 pub fn settings_save(st: State, settings: Settings) -> Res<()> {
     st.vault.data.write().settings = settings;
+    st.vault.save()
+}
+
+#[tauri::command]
+pub fn workspace_save(st: State, mut workspace: Workspace) -> Res<Workspace> {
+    if workspace.created_at == 0 {
+        workspace.created_at = vault::now();
+    }
+    for p in workspace.projects.iter_mut().filter(|p| p.id.is_empty()) {
+        p.id = vault::new_id();
+    }
+    let w = upsert(&mut st.vault.data.write().workspaces, workspace);
+    st.vault.save()?;
+    Ok(w)
+}
+
+#[tauri::command]
+pub fn workspace_delete(st: State, id: String) -> Res<()> {
+    st.vault.data.write().workspaces.retain(|w| w.id != id);
+    st.vault.save()
+}
+
+#[tauri::command]
+pub fn history_add(st: State, cmd: String, target: String) -> Res<()> {
+    st.vault.data.write().add_history(&cmd, &target);
+    st.vault.save()
+}
+
+#[tauri::command]
+pub fn history_clear(st: State) -> Res<()> {
+    st.vault.data.write().history.clear();
     st.vault.save()
 }
 

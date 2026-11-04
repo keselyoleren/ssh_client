@@ -11,6 +11,7 @@
     "clipboard-manager:allow-read-text",
     "clipboard-manager:allow-write-text",
     "core:window:allow-start-dragging",
+    "core:webview:allow-set-webview-zoom",
     "updater:default",
     "process:allow-restart"
   ]

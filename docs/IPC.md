@@ -32,6 +32,10 @@ const entries = await api.fs_list({ id, path: '/var/log' })
 | `key_import` | `name, pem, passphrase` | `Key` |
 | `snippet_save` / `snippet_delete` | `snippet: Snippet` / `id` | `Snippet` / – |
 | `settings_save` | `settings: Settings` | – |
+| `history_add` | `cmd, target` (`"local"`, `"local:<project folder>"` or host address) | – (deduplicated, last 2000 kept) |
+| `workspace_save` | `workspace: Workspace` | `Workspace` (ids filled in) |
+| `workspace_delete` | `id` | – |
+| `history_clear` | – | – |
 | `known_host_delete` | `host, keyType` | – |
 | `import_ssh_config` | – | number of hosts imported |
 | `backup_export` | `path, passphrase` | – |
@@ -42,7 +46,7 @@ const entries = await api.fs_list({ id, path: '/var/log' })
 | Command | Arguments | Returns |
 |---|---|---|
 | `term_open_ssh` | `id, host, cols, rows, onData: Channel` | – |
-| `term_open_local` | `id, cols, rows, shell?: string, onData: Channel` | – |
+| `term_open_local` | `id, cols, rows, shell?: string, cwd?: string, startupCommand?: string, onData: Channel` | – (error if `cwd` doesn't exist; `~` is expanded) |
 | `term_write` | `id, data: string` | – |
 | `term_resize` | `id, cols, rows` | – |
 | `term_close` | `id` | – |

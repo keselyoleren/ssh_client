@@ -101,6 +101,15 @@ function menu(e, h) {
       ? [
           { label: 'Open SFTP', icon: 'folder', action: () => openSftp(h) },
           { label: 'Test connection', icon: 'zap', action: () => test(h) },
+          {
+            label: 'Port forwarding…',
+            icon: 'forward',
+            action: () => {
+              store.forwardFor = h.id
+              store.view = 'forwards'
+              store.active = 'vault'
+            },
+          },
         ]
       : []),
     '-',

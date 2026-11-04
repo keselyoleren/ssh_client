@@ -30,6 +30,32 @@ pub struct ShellOptions {
     pub agent_forward: bool,
 }
 
+/// Parameters for a new local shell.
+pub struct LocalOptions {
+    pub cols: u16,
+    pub rows: u16,
+    pub shell: Option<String>,
+    /// Working directory ("~" expanded); the home directory when empty.
+    pub cwd: Option<String>,
+    /// Typed into the shell right after it starts (e.g. `npm run dev`).
+    pub startup_command: String,
+}
+
+/// Resolve a project folder: expands a leading "~" and checks that it exists.
+pub fn resolve_dir(path: &str) -> Res<std::path::PathBuf> {
+    let path = path.trim();
+    let p = match path.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') || rest.starts_with('\\') => {
+            dirs::home_dir().ok_or("no home directory")?.join(rest.trim_start_matches(['/', '\\']))
+        }
+        _ => std::path::PathBuf::from(path),
+    };
+    if !p.is_dir() {
+        return Err(format!("Folder not found: {path}"));
+    }
+    Ok(p)
+}
+
 /// Live terminals, keyed by an id chosen by the UI.
 #[derive(Default)]
 pub struct Terminals {
@@ -131,11 +157,10 @@ impl Terminals {
     pub fn open_local(
         self: &Arc<Self>,
         id: String,
-        cols: u16,
-        rows: u16,
-        shell: Option<String>,
+        opts: LocalOptions,
         out: Channel<InvokeResponseBody>,
     ) -> Res<()> {
+        let LocalOptions { cols, rows, shell, cwd, startup_command } = opts;
         use portable_pty::{native_pty_system, CommandBuilder, PtySize};
         let pty = native_pty_system();
         let pair = pty.openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).s()?;
@@ -147,13 +172,23 @@ impl Terminals {
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        if let Some(h) = dirs::home_dir() {
-            cmd.cwd(h);
+        match cwd.as_deref().filter(|c| !c.trim().is_empty()) {
+            Some(dir) => cmd.cwd(resolve_dir(dir)?),
+            None => {
+                if let Some(h) = dirs::home_dir() {
+                    cmd.cwd(h);
+                }
+            }
         }
         let mut child = pair.slave.spawn_command(cmd).ctx("spawn shell")?;
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().s()?;
         let mut writer = pair.master.take_writer().s()?;
+        if !startup_command.trim().is_empty() {
+            // buffered by the PTY until the shell is ready to read it
+            let _ = writer.write_all(format!("{}\r", startup_command.trim_end()).as_bytes());
+            let _ = writer.flush();
+        }
         let master = pair.master;
 
         let (tx, mut rx) = unbounded_channel::<Cmd>();
@@ -241,4 +276,20 @@ impl<F: FnOnce()> Drop for Guard<F> {
 }
 fn scopeguard<F: FnOnce()>(f: F) -> Guard<F> {
     Guard(Some(f))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_dir;
+
+    #[test]
+    fn resolve_dir_expands_home_and_rejects_missing() {
+        let home = dirs::home_dir().unwrap();
+        assert_eq!(resolve_dir("~").unwrap(), home);
+        let tmp = std::env::temp_dir();
+        assert_eq!(resolve_dir(&format!("  {}  ", tmp.display())).unwrap(), tmp);
+        let err = resolve_dir("/definitely/not/here").unwrap_err();
+        assert!(err.contains("Folder not found"), "{err}");
+        assert!(resolve_dir("~nobody-xyz").is_err(), "~user paths are not expanded");
+    }
 }

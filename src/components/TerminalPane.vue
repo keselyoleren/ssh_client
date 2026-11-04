@@ -8,11 +8,15 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { api, Channel, asBytes, uid } from '../lib/api'
-import { store, panes, splitFocused, closePane, openMenu, openSftp, loadVault } from '../lib/store'
-import { themes } from '../lib/themes'
+import { store, panes, splitFocused, closePane, detachPane, openMenu, openSftp, loadVault } from '../lib/store'
+import { termTheme } from '../lib/appearance'
+import { actionFor, withHint } from '../lib/keymap'
+import { promptInjection, MARKER } from '../lib/prompt'
+import { LineTracker, suggestFor, firstWord, cursorContext } from '../lib/suggest'
 import Icon from './Icon.vue'
 
 const props = defineProps({ leaf: Object, tab: Object, visible: Boolean, split: Boolean })
+const emit = defineEmits(['grab'])
 const el = ref(null)
 const status = ref('connecting')
 const message = ref('')
@@ -20,7 +24,9 @@ const searching = ref(false)
 const query = ref('')
 const searchInput = ref(null)
 const target = props.leaf.target
-const title = computed(() => (target.kind === 'local' ? 'Local' : target.host.label || target.host.host))
+const title = computed(() =>
+  target.kind === 'local' ? target.title || 'Local' : target.host.label || target.host.host,
+)
 const focused = computed(() => props.tab.focus === props.leaf.id)
 
 let term,
@@ -31,7 +37,7 @@ let term,
   raf = 0,
   lastSize = ''
 const S = () => store.vault.settings || {}
-const theme = () => themes[S().term_theme] || themes.kshell
+const theme = termTheme
 
 function options() {
   const s = S()
@@ -47,7 +53,8 @@ function options() {
 }
 
 function doFit() {
-  if (!props.visible || !el.value?.offsetWidth) return
+  // while panes are dragged around the layout changes every few pixels: resize once, on drop
+  if (store.layoutDrag || !props.visible || !el.value?.offsetWidth) return
   try {
     fit.fit()
   } catch {
@@ -64,18 +71,145 @@ const scheduleFit = () => {
   raf = requestAnimationFrame(doFit)
 }
 
+// ---------- autosuggestions ----------
+const root = ref(null)
+const tracker = new LineTracker()
+// project terminals keep their own history (other projects' commands are still a fallback)
+const histTarget = target.kind === 'local' ? (target.cwd ? `local:${target.cwd}` : 'local') : target.host.host
+const ghost = ref(null) // { text, x, y, w, cw, ch }
+let ghostRaf = 0
+const refreshGhost = () => {
+  cancelAnimationFrame(ghostRaf)
+  ghostRaf = requestAnimationFrame(computeGhost)
+}
+function computeGhost() {
+  ghost.value = null
+  if (!term || S().autosuggest === false || status.value !== 'open' || inj) return
+  if (!tracker.valid || !tracker.buf) return
+  const b = term.buffer.active
+  if (b.type !== 'normal' || b.viewportY !== b.baseY) return // full-screen app or scrolled back
+  const ctx = cursorContext(term)
+  // only when the typed text is visibly echoed (not a password prompt) and nothing is drawn after it
+  if (!ctx || ctx.free < 1 || !ctx.before.endsWith(tracker.buf)) return
+  const text = suggestFor(tracker.buf, {
+    history: store.vault.history,
+    snippets: store.vault.snippets,
+    target: histTarget,
+  })
+  if (!text) return
+  const screen = term.element?.querySelector('.xterm-screen')
+  if (!screen || !root.value) return
+  const r = screen.getBoundingClientRect()
+  const o = root.value.getBoundingClientRect()
+  const cw = r.width / term.cols
+  const ch = r.height / term.rows
+  const x = r.left - o.left + b.cursorX * cw
+  ghost.value = { text, x, y: r.top - o.top + b.cursorY * ch, w: Math.min(r.right - o.left - x, ctx.free * cw), cw, ch }
+}
+function remember(line) {
+  const cmd = line.trim()
+  if (!cmd || line.startsWith(' ')) return // leading space = "don't remember", like HISTCONTROL=ignorespace
+  const h = (store.vault.history ||= [])
+  const i = h.findIndex((x) => x.cmd === cmd && x.target === histTarget)
+  if (i >= 0) h.splice(i, 1)
+  h.push({ cmd, target: histTarget, at: Math.floor(Date.now() / 1000) })
+  if (h.length > 2000) h.splice(0, h.length - 2000)
+  if (S().save_history !== false) api.history_add({ cmd, target: histTarget }).catch(() => {})
+}
+/** Keys/text on their way to the shell: follow the line, remember finished commands. */
+function track(d) {
+  const ctx = d === '\r' && cursorContext(term) // read the screen before the shell reacts
+  const line = tracker.input(d)
+  if (line != null && ctx?.before.endsWith(line)) remember(line)
+  ghost.value = null
+}
+function acceptGhost(word) {
+  const t = word ? firstWord(ghost.value.text) : ghost.value.text
+  tracker.input(t)
+  write(t)
+  ghost.value = null
+}
+
+// ---------- K-Shell prompt ----------
+// Once the shell is idle at its first prompt, type the prompt snippet and hide everything
+// until the snippet's marker comes back, then erase the old prompt line.
+const MARK = new TextEncoder().encode(MARKER)
+let inj = null // { id, phase: 'wait' | 'hide', seen, chunks, quiet, max }
+
+function wantPrompt() {
+  const s = S()
+  if (!s.prompt_enabled || !s.prompt_segments?.length) return false
+  const scope = s.prompt_scope || 'all'
+  if (target.kind === 'local')
+    return scope !== 'ssh' && store.platform.os !== 'windows' && !target.startup_command?.trim()
+  // a startup command (tmux attach, sudo -i…) would receive the snippet instead of the login shell
+  return scope !== 'local' && !target.host.startup_command?.trim()
+}
+function cancelPrompt() {
+  if (!inj) return
+  clearTimeout(inj.quiet)
+  clearTimeout(inj.max)
+  const chunks = inj.phase === 'hide' ? inj.chunks : []
+  inj = null
+  for (const c of chunks) term.write(c)
+}
+function armPrompt(id) {
+  inj = { id, phase: 'wait', seen: false, chunks: [], quiet: 0, max: setTimeout(() => firePrompt(id, true), 5000) }
+}
+function firePrompt(id, force = false) {
+  if (!inj || inj.id !== id || sid !== id || inj.phase !== 'wait') return
+  if (status.value !== 'open' || (!inj.seen && !force)) return
+  clearTimeout(inj.quiet)
+  clearTimeout(inj.max)
+  inj.phase = 'hide'
+  inj.max = setTimeout(cancelPrompt, 5000) // no marker (slow link, not bash/zsh-like): show what happened
+  write(promptInjection(S().prompt_segments))
+}
+function indexOfBytes(hay, needle) {
+  outer: for (let i = 0; i <= hay.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (hay[i + j] !== needle[j]) continue outer
+    return i
+  }
+  return -1
+}
+function output(b) {
+  if (!inj) return term.write(b)
+  if (inj.phase === 'wait') {
+    term.write(b)
+    inj.seen = true
+    clearTimeout(inj.quiet)
+    const id = inj.id
+    inj.quiet = setTimeout(() => firePrompt(id), 450)
+    return
+  }
+  inj.chunks.push(b)
+  const all = new Uint8Array(inj.chunks.reduce((n, c) => n + c.length, 0))
+  let o = 0
+  for (const c of inj.chunks) all.set(c, (o += c.length) - c.length)
+  const i = indexOfBytes(all, MARK)
+  if (i < 0) return
+  clearTimeout(inj.max)
+  inj = null
+  term.write('\r\x1b[2K')
+  term.write(all.subarray(i + MARK.length))
+}
+
 async function connect() {
   const id = uid()
   sid = id
   status.value = 'connecting'
   message.value = ''
+  cancelPrompt()
+  tracker.reset()
+  if (wantPrompt()) armPrompt(id)
   const ch = new Channel()
   ch.onmessage = (m) => {
     if (sid !== id) return
     const b = asBytes(m)
-    if (b) return term.write(b)
+    if (b) return output(b)
     const ev = typeof m === 'string' ? JSON.parse(m) : m
     if (ev.type === 'exit') {
+      cancelPrompt()
       status.value = 'closed'
       term.write(
         `\r\n\x1b[2m[session closed${ev.code != null ? ' · exit ' + ev.code : ''}] press Enter to reconnect\x1b[0m\r\n`,
@@ -85,7 +219,15 @@ async function connect() {
   try {
     doFit()
     if (target.kind === 'local') {
-      await api.term_open_local({ id, cols: term.cols, rows: term.rows, shell: null, onData: ch })
+      await api.term_open_local({
+        id,
+        cols: term.cols,
+        rows: term.rows,
+        shell: null,
+        cwd: target.cwd || null,
+        startupCommand: target.startup_command || null,
+        onData: ch,
+      })
     } else {
       term.write(
         `\x1b[2mConnecting to ${target.host.username ? target.host.username + '@' : ''}${target.host.host}…\x1b[0m\r\n`,
@@ -102,6 +244,7 @@ async function connect() {
     lastSize = term.cols + 'x' + term.rows
     scheduleFit()
   } catch (e) {
+    cancelPrompt()
     status.value = 'error'
     message.value = String(e)
     term.write(`\r\n\x1b[31m✖ ${String(e)}\x1b[0m\r\n\x1b[2mPress Enter to retry\x1b[0m\r\n`)
@@ -165,6 +308,7 @@ function menu(e) {
             label: s.name,
             icon: 'code',
             action: () => {
+              tracker.reset()
               write(s.command + '\r')
               term.focus()
             },
@@ -172,6 +316,9 @@ function menu(e) {
         ]
       : []),
     '-',
+    ...(props.split
+      ? [{ label: 'Move to new tab', icon: 'popout', action: () => detachPane(props.tab, props.leaf.id) }]
+      : []),
     { label: 'Close pane', icon: 'x', danger: true, action: () => closePane(props.tab, props.leaf.id) },
   ])
 }
@@ -203,30 +350,50 @@ onMounted(async () => {
   }
 
   term.onData((d) => {
-    if (status.value === 'open') return write(d)
+    if (status.value === 'open') {
+      track(d)
+      return write(d)
+    }
     if (d === '\r' && status.value !== 'connecting') {
       term.clear()
       connect()
     }
   })
+  // The user started typing before the prompt was installed: leave the shell alone.
+  // (onKey, not onData — onData also carries the terminal's automatic replies to shell queries.)
+  term.onKey(() => inj?.phase === 'wait' && cancelPrompt())
+  term.onWriteParsed(refreshGhost)
+  term.onCursorMove(refreshGhost)
+  term.onScroll(refreshGhost)
+  term.onResize(refreshGhost)
   term.onSelectionChange(() => {
     if (S().copy_on_select && term.hasSelection()) copySel()
   })
   term.attachCustomKeyEventHandler((e) => {
     if (e.type !== 'keydown') return true
     const mac = store.platform.os === 'macos'
-    const mod = mac ? e.metaKey : e.ctrlKey && e.shiftKey
-    if (mod && e.key.toLowerCase() === 'c' && term.hasSelection()) {
+    const a = actionFor(e)
+    if ((a?.id === 'accept_suggestion' || a?.id === 'accept_suggestion_word') && ghost.value) {
+      acceptGhost(a.id === 'accept_suggestion_word')
+      e.preventDefault()
+      return false
+    }
+    if (a?.id === 'copy' && term.hasSelection()) {
       copySel()
       return false
     }
-    if (mod && e.key.toLowerCase() === 'v') {
+    if (a?.id === 'paste') {
       paste()
       e.preventDefault()
       return false
     }
-    if (mod && e.key.toLowerCase() === 'f') {
+    if (a?.id === 'find') {
       openSearch()
+      e.preventDefault()
+      return false
+    }
+    if (a?.id === 'clear') {
+      term.clear()
       e.preventDefault()
       return false
     }
@@ -243,7 +410,14 @@ onMounted(async () => {
     props.tab.focus = props.leaf.id
   })
 
-  panes.set(props.leaf.id, { write, focus: () => term.focus(), term })
+  panes.set(props.leaf.id, {
+    write: (t) => {
+      tracker.reset() // snippets run as whole commands
+      write(t)
+    },
+    focus: () => term.focus(),
+    term,
+  })
   ro = new ResizeObserver(scheduleFit)
   ro.observe(el.value)
   await nextTick()
@@ -262,11 +436,15 @@ watch(
       })
   },
 )
+watch(
+  () => store.layoutDrag,
+  (d) => !d && scheduleFit(),
+)
 watch(focused, (f) => {
   if (f && props.visible) term?.focus()
 })
 watch(
-  () => store.vault.settings,
+  () => [store.vault.settings, store.systemDark],
   () => {
     if (!term) return
     Object.assign(term.options, options())
@@ -276,6 +454,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  cancelPrompt()
+  cancelAnimationFrame(ghostRaf)
   ro?.disconnect()
   cancelAnimationFrame(raf)
   panes.delete(props.leaf.id)
@@ -286,25 +466,36 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="tp" :class="{ focused: focused && split }" :style="{ background: theme().background }">
-    <div v-if="split" class="ph" :style="{ color: theme().foreground }">
+  <div ref="root" class="tp" :class="{ focused: focused && split }" :style="{ background: theme().background }">
+    <div
+      v-if="split"
+      class="ph"
+      :style="{ color: theme().foreground }"
+      title="Drag to move this pane"
+      @mousedown="emit('grab', $event, title)"
+    >
       <span class="st" :class="status"></span>
       <span class="t">{{ title }}</span>
       <button class="iconbtn" @click="splitFocused('row')" title="Split right">
         <Icon name="splitH" :size="13" />
       </button>
       <button class="iconbtn" @click="splitFocused('col')" title="Split down"><Icon name="splitV" :size="13" /></button>
+      <button class="iconbtn" @click="detachPane(tab, leaf.id)" title="Move to new tab">
+        <Icon name="popout" :size="13" />
+      </button>
       <button class="iconbtn" @click="closePane(tab, leaf.id)" title="Close pane"><Icon name="x" :size="13" /></button>
     </div>
     <div v-else class="tools">
-      <button class="iconbtn" @click="openSearch" title="Find"><Icon name="search" :size="14" /></button>
+      <button class="iconbtn" @click="openSearch" :title="withHint('Find', 'find')">
+        <Icon name="search" :size="14" />
+      </button>
       <button class="iconbtn" @click="(e) => menu(e)" title="Snippets & actions">
         <Icon name="code" :size="14" />
       </button>
-      <button class="iconbtn" @click="splitHere('row')" title="Split right (⌘D)">
+      <button class="iconbtn" @click="splitHere('row')" :title="withHint('Split right', 'split_right')">
         <Icon name="splitH" :size="14" />
       </button>
-      <button class="iconbtn" @click="splitHere('col')" title="Split down (⇧⌘D)">
+      <button class="iconbtn" @click="splitHere('col')" :title="withHint('Split down', 'split_down')">
         <Icon name="splitV" :size="14" />
       </button>
     </div>
@@ -325,6 +516,22 @@ onBeforeUnmount(() => {
       </button>
     </div>
     <div ref="el" class="xt"></div>
+    <div
+      v-if="ghost"
+      class="ghost"
+      :style="{
+        left: ghost.x + 'px',
+        top: ghost.y + 'px',
+        width: ghost.w + 'px',
+        height: ghost.ch + 'px',
+        lineHeight: ghost.ch + 'px',
+        color: theme().foreground,
+        fontFamily: S().font_family,
+        fontSize: (S().font_size || 13) + 'px',
+      }"
+    >
+      <span v-for="(c, i) in ghost.text" :key="i" :style="{ width: ghost.cw + 'px' }">{{ c }}</span>
+    </div>
     <div v-if="status === 'connecting' && target.kind === 'ssh'" class="loading"><span class="spin"></span></div>
   </div>
 </template>
@@ -355,6 +562,9 @@ onBeforeUnmount(() => {
   font-size: 11.5px;
   opacity: 0.8;
   border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+}
+.ph {
+  cursor: grab;
 }
 .ph .t {
   flex: 1;
@@ -436,6 +646,18 @@ onBeforeUnmount(() => {
   to {
     transform: rotate(360deg);
   }
+}
+.ghost {
+  position: absolute;
+  z-index: 2;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: none;
+  opacity: 0.38;
+}
+.ghost span {
+  display: inline-block;
+  text-align: center;
 }
 :deep(.xterm) {
   height: 100%;
