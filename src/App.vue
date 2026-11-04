@@ -1,6 +1,8 @@
 <script setup>
 import { onMounted, onBeforeUnmount, computed } from 'vue'
-import { store, loadVault, openLocal, closeTab, activeTab, splitFocused, err } from './lib/store'
+import { store, loadVault, err } from './lib/store'
+import { actionFor } from './lib/keymap'
+import { initAppearance } from './lib/appearance'
 import { api } from './lib/api'
 import { startUpdateChecks } from './lib/updater'
 import Sidebar from './components/Sidebar.vue'
@@ -11,7 +13,8 @@ import SnippetsView from './views/SnippetsView.vue'
 import ForwardsView from './views/ForwardsView.vue'
 import KnownHostsView from './views/KnownHostsView.vue'
 import SettingsView from './views/SettingsView.vue'
-import TerminalTab from './components/TerminalTab.vue'
+import WorkspacesView from './views/WorkspacesView.vue'
+import TerminalLayer from './components/TerminalLayer.vue'
 import SftpTab from './components/SftpTab.vue'
 import HostEditor from './components/HostEditor.vue'
 import Palette from './components/Palette.vue'
@@ -24,32 +27,22 @@ const views = {
   forwards: ForwardsView,
   known: KnownHostsView,
   settings: SettingsView,
+  workspaces: WorkspacesView,
 }
 const view = computed(() => views[store.view] || HostsView)
 
 function onKey(e) {
-  const mod = store.platform.os === 'macos' ? e.metaKey : e.ctrlKey && e.shiftKey
-  if (!mod) return
-  const k = e.key.toLowerCase()
-  let handled = true
-  if (k === 'k' || k === 'p') store.palette = !store.palette
-  else if (k === 't') openLocal()
-  else if (k === 'w') {
-    if (store.active !== 'vault') closeTab(store.active)
-  } else if (k === 'd') splitFocused(e.shiftKey && store.platform.os === 'macos' ? 'col' : 'row')
-  else if (k === 'e') splitFocused('col')
-  // Use the physical key: with Shift held (Windows/Linux), e.key is '!', '@', … instead of a digit.
-  else if (/^Digit[1-9]$/.test(e.code)) {
-    const n = +e.code.slice(5)
-    store.active = n === 1 ? 'vault' : store.tabs[n - 2]?.id || store.active
-  } else handled = false
-  if (handled) {
-    e.preventDefault()
-    e.stopPropagation()
-  }
+  if (store.recordingKeys) return
+  const a = actionFor(e)
+  // Terminal-scoped actions (copy, paste, find…) are handled by the focused terminal pane.
+  if (!a || a.scope === 'terminal' || !a.run) return
+  a.run()
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 onMounted(async () => {
+  initAppearance()
   try {
     store.platform = await api.platform()
     document.documentElement.dataset.os = store.platform.os
@@ -76,10 +69,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
         <div class="pane-wrap" v-show="store.active === 'vault'">
           <component :is="view" />
         </div>
+        <!-- all terminal panes share one layer so they can move between tabs without reconnecting -->
+        <div class="pane-wrap" v-show="store.tabs.some((t) => t.id === store.active && t.kind === 'term')">
+          <TerminalLayer />
+        </div>
         <template v-for="t in store.tabs" :key="t.id">
-          <div class="pane-wrap" v-show="store.active === t.id">
-            <TerminalTab v-if="t.kind === 'term'" :tab="t" :visible="store.active === t.id" />
-            <SftpTab v-else :tab="t" />
+          <div v-if="t.kind !== 'term'" class="pane-wrap" v-show="store.active === t.id">
+            <SftpTab :tab="t" />
           </div>
         </template>
       </section>

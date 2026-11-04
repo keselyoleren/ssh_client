@@ -13,7 +13,7 @@ use kshell_lib::{
     fs::Progress,
     keys,
     ssh::Pool,
-    terminal::{Cmd, ShellOptions, Terminals},
+    terminal::{Cmd, LocalOptions, ShellOptions, Terminals},
     vault::*,
 };
 use std::sync::{Arc, Mutex};
@@ -356,7 +356,14 @@ async fn end_to_end() {
 
     println!("Local PTY");
     let (ch, buf, ev) = capture();
-    check!("spawn shell", terms.open_local("l1".into(), 80, 24, Some("/bin/sh".into()), ch));
+    let opts = |cwd: Option<String>, startup_command: &str| LocalOptions {
+        cols: 80,
+        rows: 24,
+        shell: Some("/bin/sh".into()),
+        cwd,
+        startup_command: startup_command.into(),
+    };
+    check!("spawn shell", terms.open_local("l1".into(), opts(None, ""), ch));
     terms.send("l1", Cmd::Write(b"echo local-$((40+2))\n".to_vec())).unwrap();
     check!("local echo", wait_for(&buf, "local-42", 10).await);
     terms.send("l1", Cmd::Write(b"exit\n".to_vec())).unwrap();
@@ -367,6 +374,25 @@ async fn end_to_end() {
         tokio::time::sleep(Duration::from_millis(50)).await
     }
     check!("local exit event", ev.lock().unwrap().first().cloned().ok_or("no exit event".to_string()));
+
+    // project terminal: starts in the folder and runs its startup command
+    let (ch, buf, _) = capture();
+    let proj = std::env::temp_dir();
+    check!(
+        "spawn in folder",
+        terms.open_local("l2".into(), opts(Some(proj.display().to_string()), "pwd"), ch)
+    );
+    let base = proj.file_name().unwrap().to_string_lossy().to_string();
+    check!("startup command ran in folder", wait_for(&buf, &base, 10).await);
+    terms.close("l2");
+    let (ch, _, _) = capture();
+    check!(
+        "missing folder is an error",
+        match terms.open_local("l3".into(), opts(Some("/no/such/dir".into()), ""), ch) {
+            Err(e) if e.contains("Folder not found") => Ok(()),
+            other => Err(format!("{other:?}")),
+        }
+    );
 
     println!("Vault");
     check!("save", vault.save());

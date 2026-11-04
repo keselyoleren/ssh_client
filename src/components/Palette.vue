@@ -1,9 +1,10 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
-import { store, connectHost, openLocal, openSftp, sendToFocused } from '../lib/store'
+import { store, connectHost, openLocal, openSftp, sendToFocused, openProject, openWorkspace } from '../lib/store'
 import { uid } from '../lib/api'
 import Icon from './Icon.vue'
 import { isObjectStorage } from '../lib/os'
+import { ACTIONS, hint } from '../lib/keymap'
 
 const q = ref('')
 const sel = ref(0)
@@ -21,6 +22,20 @@ const items = computed(() => {
         label: h.label || h.host,
         sub: `${h.username ? h.username + '@' : ''}${h.host}`,
         run: () => connectHost(h),
+      })
+  }
+  for (const ws of store.vault.workspaces || []) {
+    for (const p of ws.projects || []) {
+      const hay = `${ws.name} ${p.name} ${p.path}`.toLowerCase()
+      if (!s || hay.includes(s))
+        out.push({ icon: 'folder', label: p.name, sub: `${ws.name} · ${p.path}`, run: () => openProject(ws, p) })
+    }
+    if (s && ws.projects?.length && ws.name.toLowerCase().includes(s))
+      out.push({
+        icon: 'grid',
+        label: `Open workspace ${ws.name}`,
+        sub: `${ws.projects.length} project${ws.projects.length === 1 ? '' : 's'}`,
+        run: () => openWorkspace(ws),
       })
   }
   for (const sn of store.vault.snippets) {
@@ -46,9 +61,16 @@ const items = computed(() => {
     })
   }
   if (!s || 'local terminal'.includes(s))
-    out.push({ icon: 'terminal', label: 'New local terminal', sub: '', run: openLocal })
+    out.push({ icon: 'terminal', label: 'New local terminal', sub: '', keys: hint('new_local'), run: openLocal })
   if (!s || 'file manager sftp'.includes(s))
-    out.push({ icon: 'folder', label: 'Open file manager', sub: '', run: () => openSftp() })
+    out.push({ icon: 'folder', label: 'Open file manager', sub: '', keys: hint('new_sftp'), run: () => openSftp() })
+  // app commands, e.g. "split", "zoom", "settings"
+  if (s)
+    for (const a of ACTIONS) {
+      if (!a.run || a.id === 'palette' || a.id === 'new_local' || a.id === 'new_sftp') continue
+      if (`${a.group} ${a.label}`.toLowerCase().includes(s))
+        out.push({ icon: 'zap', label: a.label, sub: a.group, keys: hint(a.id), run: a.run })
+    }
   return out.slice(0, 50)
 })
 
@@ -94,6 +116,7 @@ function choose(it) {
           <Icon :name="it.icon" />
           <span class="l">{{ it.label }}</span>
           <span class="s mono">{{ it.sub }}</span>
+          <kbd v-if="it.keys" class="k">{{ it.keys }}</kbd>
         </div>
         <div v-if="!items.length" class="dim" style="padding: 18px">No results</div>
       </div>
@@ -160,5 +183,17 @@ function choose(it) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.k {
+  margin-left: auto;
+  flex: none;
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  background: var(--bg-3);
+  border: 1px solid var(--line);
+  color: var(--text-2);
 }
 </style>

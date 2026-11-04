@@ -6,7 +6,7 @@ rendered by the OS webview (WebKit on macOS and Linux, WebView2 on Windows) hand
 ```
 ┌──────────────────────── UI (Vue 3, src/) ────────────────────────┐
 │ views/        Hosts · Keychain · Forwards · Snippets · Settings  │
-│ components/   TerminalTab → TerminalPane (xterm.js)              │
+│ components/   TerminalLayer → TerminalPane (xterm.js)            │
 │               SftpTab → FilePane ×2, transfer queue, TextEditor  │
 │ lib/store.js  reactive app state: vault copy, tabs, dialogs      │
 │ lib/api.js    `api.<command>(args)` → Tauri invoke               │
@@ -29,7 +29,7 @@ rendered by the OS webview (WebKit on macOS and Linux, WebView2 on Windows) hand
 ```
 .
 ├── src/                    # UI (Vue 3 + Vite)
-│   ├── App.vue             # shell: sidebar, tab bar, global shortcuts
+│   ├── App.vue             # shell: sidebar, tab bar, global shortcuts (lib/keymap.js)
 │   ├── styles.css          # design tokens (CSS variables) + shared classes
 │   ├── lib/                # api, store, themes, path helpers, host badges
 │   ├── components/         # reusable building blocks (terminal, file pane, dialogs…)
@@ -84,8 +84,11 @@ as a single raw `InvokeResponseBody::Raw` message over a Tauri `Channel`. There 
 so `seq 1 200000` renders in about 50 ms. Input comes in through `term_write`. Local shells use `portable-pty` with
 one reader thread and one control thread.
 
-On the UI side, `TerminalTab.vue` flattens the split tree into absolutely positioned rectangles, keyed by pane id.
-Splitting or closing a pane therefore **never remounts** the other terminals, and their sessions survive.
+On the UI side, `TerminalLayer.vue` flattens the split trees of **all** terminal tabs into one list of absolutely
+positioned rectangles, keyed by pane id, and only shows the active tab's panes. Splitting or closing a pane, merging
+a dragged tab into another one (`mergeTab`), dragging a pane to a new spot (`movePane`) or moving it to its own tab
+(`detachPane`) therefore **never remounts** a terminal, and its session survives. While dragging, the layer draws a
+preview tree (`treeWithout` + `treeInsert`) and panes pause PTY resizes until the drop.
 
 ### One file-system API
 `fs::Fs` is an enum over the backends in `fs/`: `local`, `sftp`, `ftp` (FTP and FTPS), `s3` (any S3-compatible
@@ -120,7 +123,13 @@ need to stream bytes.
 
 ### …add a setting
 Add a field to `Settings` in `vault.rs` and its default in `impl Default for Settings`. Then add a control in
-`views/SettingsView.vue`, which saves automatically, and read it with `store.vault.settings.<field>`.
+`views/SettingsView.vue` and read it with `store.vault.settings.<field>`. Any in-place edit of
+`store.vault.settings` is saved automatically (debounced watcher in `lib/store.js`).
+
+### …add a keyboard shortcut
+Add an action to `ACTIONS` in `src/lib/keymap.js` with its default `mac` / `pc` combos and a `run` function.
+It shows up in Settings → Keyboard shortcuts (rebindable) and in the command palette automatically. Actions with
+`scope: 'terminal'` have no `run`; the focused `TerminalPane.vue` handles them.
 
 ### …add a terminal theme
 Add an entry to `src/lib/themes.js`. It appears in Settings automatically.

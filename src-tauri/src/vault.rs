@@ -134,6 +134,25 @@ pub struct Settings {
     pub copy_on_select: bool,
     pub right_click_paste: bool,
     pub confirm_close: bool,
+    /// Accent colour override (hex); empty uses the theme default.
+    pub accent: String,
+    /// Webview zoom factor, 1.0 = 100%.
+    pub ui_zoom: f32,
+    /// Use `term_theme_light` instead of `term_theme` while the app is light.
+    pub term_theme_sync: bool,
+    pub term_theme_light: String,
+    /// Custom shortcuts: "<mac|pc>:<action id>" -> combo ("" = unbound).
+    pub keybindings: std::collections::HashMap<String, String>,
+    /// Install the K-Shell prompt in new bash/zsh sessions.
+    pub prompt_enabled: bool,
+    /// Ordered prompt segment ids (see src/lib/prompt.js).
+    pub prompt_segments: Vec<String>,
+    /// Where the prompt is applied: "all" | "local" | "ssh".
+    pub prompt_scope: String,
+    /// Show history-based autosuggestions while typing in terminals.
+    pub autosuggest: bool,
+    /// Keep typed commands in the vault across restarts.
+    pub save_history: bool,
 }
 
 impl Default for Settings {
@@ -150,6 +169,16 @@ impl Default for Settings {
             copy_on_select: true,
             right_click_paste: true,
             confirm_close: true,
+            accent: String::new(),
+            ui_zoom: 1.0,
+            term_theme_sync: false,
+            term_theme_light: "light".into(),
+            keybindings: Default::default(),
+            prompt_enabled: false,
+            prompt_segments: ["venv", "user_host", "cwd", "git", "exit", "symbol"].map(String::from).to_vec(),
+            prompt_scope: "all".into(),
+            autosuggest: true,
+            save_history: true,
         }
     }
 }
@@ -164,6 +193,55 @@ pub struct VaultData {
     pub forwards: Vec<Forward>,
     pub known_hosts: Vec<KnownHost>,
     pub settings: Settings,
+    /// Commands typed in terminals, newest last; feeds autosuggestions.
+    pub history: Vec<HistoryEntry>,
+    /// Groups of local project folders.
+    pub workspaces: Vec<Workspace>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Workspace {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub projects: Vec<Project>,
+    pub created_at: i64,
+}
+
+/// A folder opened in a local terminal, optionally running a command first.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub startup_command: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(default)]
+pub struct HistoryEntry {
+    pub cmd: String,
+    /// "local" or the host address the command ran on.
+    pub target: String,
+    pub at: i64,
+}
+
+pub const HISTORY_MAX: usize = 2000;
+
+impl VaultData {
+    /// Record a command, moving an existing identical entry to the end.
+    pub fn add_history(&mut self, cmd: &str, target: &str) {
+        let cmd = cmd.trim();
+        if cmd.is_empty() || cmd.len() > 2000 {
+            return;
+        }
+        self.history.retain(|h| !(h.cmd == cmd && h.target == target));
+        self.history.push(HistoryEntry { cmd: cmd.into(), target: target.into(), at: now() });
+        let over = self.history.len().saturating_sub(HISTORY_MAX);
+        self.history.drain(..over);
+    }
 }
 
 pub struct Vault {
@@ -304,6 +382,9 @@ impl VaultData {
         for f in other.forwards {
             upsert(&mut self.forwards, f);
         }
+        for w in other.workspaces {
+            upsert(&mut self.workspaces, w);
+        }
         for kh in other.known_hosts {
             if !self.known_hosts.iter().any(|x| x.host == kh.host && x.key_type == kh.key_type) {
                 self.known_hosts.push(kh);
@@ -380,7 +461,7 @@ macro_rules! has_id { ($($t:ty),*) => { $(impl HasId for $t {
     fn id_mut(&mut self) -> &mut String { &mut self.id }
     fn id_ref(&self) -> &str { &self.id }
 })* } }
-has_id!(Host, Key, Snippet, Forward);
+has_id!(Host, Key, Snippet, Forward, Workspace, Project);
 
 /// Upsert: assign an id when missing, replace when present.
 pub fn upsert<T: HasId + Clone>(list: &mut Vec<T>, mut item: T) -> T {
@@ -407,6 +488,23 @@ mod tests {
         assert!(open(&[0u8; 32], &blob).is_err(), "wrong key must fail");
         *blob.last_mut().unwrap() ^= 1;
         assert!(open(&key, &blob).is_err(), "tampered data must fail");
+    }
+
+    #[test]
+    fn history_dedupes_and_caps() {
+        let mut d = VaultData::default();
+        d.add_history("ls", "local");
+        d.add_history("  pwd ", "local");
+        d.add_history("ls", "local");
+        d.add_history("ls", "srv");
+        d.add_history("   ", "local");
+        let got: Vec<_> = d.history.iter().map(|h| (h.cmd.as_str(), h.target.as_str())).collect();
+        assert_eq!(got, [("pwd", "local"), ("ls", "local"), ("ls", "srv")]);
+        for i in 0..HISTORY_MAX + 10 {
+            d.add_history(&format!("echo {i}"), "local");
+        }
+        assert_eq!(d.history.len(), HISTORY_MAX);
+        assert_eq!(d.history.last().unwrap().cmd, format!("echo {}", HISTORY_MAX + 9));
     }
 
     #[test]

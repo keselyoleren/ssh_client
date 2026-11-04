@@ -172,6 +172,12 @@ button {
   font-family: ui-monospace, Menlo, Consolas, monospace;
   font-size: 12px;
 }
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .input:focus,
 .select:focus,
 .textarea:focus {

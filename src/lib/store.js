@@ -5,8 +5,18 @@ import { isObjectStorage } from './os'
 export const store = reactive({
   ready: false,
   platform: { os: 'macos' },
-  vault: { hosts: [], keys: [], snippets: [], forwards: [], known_hosts: [], settings: {} },
+  vault: {
+    hosts: [],
+    keys: [],
+    snippets: [],
+    forwards: [],
+    known_hosts: [],
+    workspaces: [],
+    history: [],
+    settings: {},
+  },
   view: 'hosts', // sidebar section shown on the Vault tab
+  settingsTab: 'appearance', // section shown on the Settings page
   tabs: [], // open session tabs
   active: 'vault', // 'vault' or a tab id
   activeForwards: [],
@@ -15,6 +25,12 @@ export const store = reactive({
   editor: null, // { host } when host drawer is open
   dialog: null, // generic prompt/confirm dialog
   menu: null,
+  systemDark: true, // OS colour scheme, tracked by lib/appearance.js
+  recordingKeys: false,
+  forwardFor: null, // host id: open a new forwarding rule for it (Hosts → Port forwarding…)
+  tabDrag: null, // id of the tab being dragged in the tab bar
+  layoutDrag: false, // a pane or tab is being dragged over the terminals: panes stop resizing their PTY
+  paneToTabBar: false, // a dragged pane is over the tab bar (drop = own tab) // true while the shortcut editor captures a key combination
   // in-app updater: state is idle | available | downloading | installing | restarting
   update: { state: 'idle', version: '', notes: '', progress: null, checking: false }, // context menu { x, y, items }
 })
@@ -62,6 +78,22 @@ export function openTerminal(target, title) {
 
 export function openLocal() {
   return openTerminal({ kind: 'local' }, 'Local')
+}
+
+/** Open a workspace project: a local terminal in its folder, tinted with the workspace colour. */
+export function openProject(ws, p) {
+  const tab = openTerminal(
+    { kind: 'local', cwd: p.path, startup_command: p.startup_command || '', title: p.name, workspace: ws.id },
+    p.name,
+  )
+  tab.color = ws.color || ''
+  return tab
+}
+/** Open every project of a workspace in its own tab; focuses the first one. */
+export function openWorkspace(ws) {
+  const tabs = (ws.projects || []).map((p) => openProject(ws, p))
+  if (tabs[0]) store.active = tabs[0].id
+  return tabs
 }
 
 export function connectHost(host) {
@@ -127,6 +159,103 @@ export function closePane(tab, paneId) {
   tab.focus = first(root).id
 }
 
+const firstLeaf = (n) => (n.type === 'leaf' ? n : firstLeaf(n.children[0]))
+
+// ---------- split-tree helpers (pure: they return new split nodes, leaves are shared) ----------
+
+/** Tree without node `id` (its sibling takes the freed space); null when nothing is left. */
+export function treeWithout(n, id) {
+  if (n.id === id) return null
+  if (n.type === 'leaf') return n
+  const kids = n.children.map((c) => treeWithout(c, id)).filter(Boolean)
+  if (!kids.length) return null
+  if (kids.length === 1) return kids[0]
+  return { ...n, children: kids }
+}
+/** Tree with `node` placed on `side` ('left' | 'right' | 'top' | 'bottom') of node `targetId`. */
+export function treeInsert(n, targetId, side, node) {
+  if (n.id === targetId) {
+    const dir = side === 'left' || side === 'right' ? 'row' : 'col'
+    const before = side === 'left' || side === 'top'
+    return { type: 'split', id: uid(), dir, ratio: 0.5, children: before ? [node, n] : [n, node] }
+  }
+  if (n.type === 'leaf') return n
+  return { ...n, children: n.children.map((c) => treeInsert(c, targetId, side, node)) }
+}
+/** Where a pane currently sits, as { nodeId, side } relative to its sibling. */
+export function placeOf(root, id) {
+  const walk = (n) => {
+    if (n.type === 'leaf') return null
+    const i = n.children.findIndex((c) => c.id === id)
+    if (i >= 0) {
+      const side = n.dir === 'row' ? (i === 0 ? 'left' : 'right') : i === 0 ? 'top' : 'bottom'
+      return { nodeId: n.children[1 - i].id, side }
+    }
+    return n.children.map(walk).find(Boolean) || null
+  }
+  return walk(root)
+}
+
+/** Move pane `leafId` of `tab` next to node `nodeId`. Its session keeps running. */
+export function movePane(tab, leafId, nodeId, side) {
+  if (leafId === nodeId) return
+  let leaf = null
+  const find = (n) => (n.id === leafId ? (leaf = n) : n.type === 'split' && n.children.forEach(find))
+  find(tab.root)
+  const base = leaf && treeWithout(tab.root, leafId)
+  if (!base) return
+  tab.root = treeInsert(base, nodeId, side, leaf)
+  tab.focus = leafId
+}
+
+/**
+ * Merge terminal tab `srcId` into tab `dstId`, placing it on `side` of node `nodeId`.
+ * Sessions keep running: the panes only move.
+ */
+export function mergeTab(srcId, dstId, nodeId, side) {
+  const src = store.tabs.find((t) => t.id === srcId)
+  const dst = store.tabs.find((t) => t.id === dstId)
+  if (!src || !dst || src === dst || src.kind !== 'term' || dst.kind !== 'term') return
+  dst.root = treeInsert(dst.root, nodeId, side, src.root)
+  dst.focus = firstLeaf(src.root).id
+  store.tabs.splice(store.tabs.indexOf(src), 1)
+  store.active = dst.id
+}
+
+/** Drop target registered by TerminalLayer for tabs dragged from the tab bar: { over(x, y, tab), drop(), leave() } */
+export const terminalDrop = { api: null }
+
+/** Take a pane out of a split tab and give it its own tab (the session keeps running). */
+export function detachPane(tab, paneId) {
+  let moved = null
+  const prune = (node) => {
+    if (node.type === 'leaf') {
+      if (node.id !== paneId) return node
+      moved = node
+      return null
+    }
+    const kids = node.children.map(prune).filter(Boolean)
+    if (kids.length === 1) return kids[0]
+    node.children = kids
+    return node
+  }
+  if (tab.root.type === 'leaf') return
+  tab.root = prune(tab.root)
+  if (!moved) return
+  tab.focus = firstLeaf(tab.root).id
+  const t = moved.target
+  const nt = {
+    id: uid(),
+    kind: 'term',
+    title: t.kind === 'local' ? t.title || 'Local' : t.host.label || t.host.host,
+    root: moved,
+    focus: moved.id,
+    color: t.host?.color || tab.color || '',
+  }
+  store.tabs.splice(store.tabs.indexOf(tab) + 1, 0, nt)
+  store.active = nt.id
+}
+
 // live terminal panes (id -> { write(text), focus(), term })
 export const panes = new Map()
 
@@ -138,11 +267,30 @@ export function sendToFocused(text) {
   p.focus()
 }
 
+// Persist settings whenever they are edited in place (from the Settings page or a shortcut
+// such as zoom). Replacing the whole object (loadVault) is not an edit and is skipped.
+let saveTimer = 0
 watch(
-  () => store.vault.settings?.app_theme,
-  (t) => {
-    document.documentElement.dataset.theme = t || 'dark'
+  () => store.vault.settings,
+  (now, before) => {
+    if (now !== before) return
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      const s = store.vault.settings
+      api
+        .settings_save({
+          settings: {
+            ...s,
+            font_size: +s.font_size || 13,
+            scrollback: +s.scrollback || 10000,
+            line_height: +s.line_height || 1.2,
+            ui_zoom: +s.ui_zoom || 1,
+          },
+        })
+        .catch(err)
+    }, 300)
   },
+  { deep: true },
 )
 
 export function openMenu(e, items) {

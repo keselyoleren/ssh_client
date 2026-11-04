@@ -5,6 +5,7 @@ import Logo from './Logo.vue'
 
 const items = [
   { id: 'hosts', icon: 'server', label: 'Hosts' },
+  { id: 'workspaces', icon: 'grid', label: 'Workspaces' },
   { id: 'keys', icon: 'key', label: 'Keychain' },
   { id: 'forwards', icon: 'forward', label: 'Port Forwarding' },
   { id: 'snippets', icon: 'code', label: 'Snippets' },
