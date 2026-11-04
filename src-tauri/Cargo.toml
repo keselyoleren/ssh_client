@@ -1,6 +1,6 @@
 [package]
 name = "kshell"
-version = "0.2.0"
+version = "0.3.0"
 description = "Lightweight cross-platform SSH / SFTP / FTP / S3 client"
 authors = ["K-Shell contributors"]
 license = "MIT"
