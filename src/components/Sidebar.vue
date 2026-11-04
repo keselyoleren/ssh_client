@@ -1,5 +1,6 @@
 <script setup>
-import { store, openLocal, openSftp } from '../lib/store'
+import { store, openLocal, openSftp, toggleSidebar } from '../lib/store'
+import { withHint } from '../lib/keymap'
 import Icon from './Icon.vue'
 import Logo from './Logo.vue'
 
@@ -18,11 +19,18 @@ function go(id) {
 </script>
 
 <template>
-  <aside class="side">
+  <aside
+    class="side"
+    :class="{ hidden: store.vault.settings.sidebar_hidden }"
+    :aria-hidden="!!store.vault.settings.sidebar_hidden"
+  >
     <div class="drag" data-tauri-drag-region></div>
     <div class="brand" data-tauri-drag-region>
       <Logo :size="26" />
       <span>K-Shell</span>
+      <button class="iconbtn hide" :title="withHint('Hide sidebar', 'toggle_sidebar')" @click="toggleSidebar">
+        <Icon name="sidebar" :size="15" />
+      </button>
     </div>
     <nav>
       <button
@@ -53,11 +61,34 @@ function go(id) {
 .side {
   width: 212px;
   flex: none;
+  overflow: hidden;
+  transition:
+    width 0.18s ease,
+    padding 0.18s ease,
+    border-color 0.18s ease;
   background: var(--side);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   padding: 0 10px 12px;
+}
+.side.hidden {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-color: transparent;
+}
+.side > * {
+  min-width: 192px;
+}
+.brand .hide {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.side:hover .brand .hide,
+.brand .hide:focus-visible {
+  opacity: 1;
 }
 .drag {
   height: 12px;

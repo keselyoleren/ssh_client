@@ -153,6 +153,8 @@ pub struct Settings {
     pub autosuggest: bool,
     /// Keep typed commands in the vault across restarts.
     pub save_history: bool,
+    /// Left sidebar hidden (toggled with ⌘B / Ctrl+Shift+B).
+    pub sidebar_hidden: bool,
 }
 
 impl Default for Settings {
@@ -179,6 +181,7 @@ impl Default for Settings {
             prompt_scope: "all".into(),
             autosuggest: true,
             save_history: true,
+            sidebar_hidden: false,
         }
     }
 }

@@ -76,6 +76,7 @@ Every shortcut can be changed, removed or reset in **Settings → Keyboard short
 | <kbd>⌘F</kbd> | <kbd>Ctrl+Shift+F</kbd> | Find in terminal |
 | <kbd>→</kbd> / <kbd>⌥→</kbd> | <kbd>→</kbd> / <kbd>Ctrl+→</kbd> | Accept autosuggestion / its next word |
 | <kbd>⌘=</kbd> / <kbd>⌘-</kbd> / <kbd>⌘0</kbd> | <kbd>Ctrl+=</kbd> / <kbd>Ctrl+-</kbd> / <kbd>Ctrl+0</kbd> | Zoom in / out / reset |
+| <kbd>⌘B</kbd> | <kbd>Ctrl+Shift+B</kbd> | Show / hide the sidebar |
 | <kbd>⌘1</kbd> | <kbd>Ctrl+Shift+1</kbd> | Host list (Vault) |
 | <kbd>⌘2</kbd> … <kbd>⌘9</kbd> | <kbd>Ctrl+Shift+2</kbd> … <kbd>9</kbd> | Switch to an open tab |
 

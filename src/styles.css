@@ -415,3 +415,8 @@ button {
   border-top: 1px solid var(--line);
   margin: 4px 0;
 }
+
+/* Sidebar hidden: on macOS the window buttons (traffic lights) sit over the tab bar. */
+:root[data-os='macos'] .tabs.nosb {
+  padding-left: 80px;
+}
