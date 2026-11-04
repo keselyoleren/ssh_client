@@ -47,6 +47,7 @@ const P = {
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
   calendar: 'M3 5h18v16H3zM16 3v4M8 3v4M3 10h18',
   cube: 'M12 2l9 5v10l-9 5-9-5V7zM12 22V12M21 7l-9 5-9-5',
+  sidebar: 'M3 4h18v16H3zM9 4v16',
   popout: 'M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5',
   newline: 'M9 10l-5 5 5 5M20 4v7a4 4 0 0 1-4 4H4',
   dollar: 'M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',

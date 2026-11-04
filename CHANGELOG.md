@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Show or hide the sidebar with <kbd>⌘B</kbd> / <kbd>Ctrl+Shift+B</kbd>, the button next to the K-Shell logo (shown on
+  hover), the button at the start of the tab bar while it's hidden, or *Settings → Appearance → Show sidebar*.
+  The choice is remembered.
+
 ## [0.2.0] - 2026-11-04
 
 ### Added

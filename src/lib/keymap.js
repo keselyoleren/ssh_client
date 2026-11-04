@@ -7,7 +7,7 @@
 // empty combo means "no shortcut".
 
 import { computed } from 'vue'
-import { store, openLocal, openSftp, closeTab, closePane, activeTab, splitFocused } from './store'
+import { store, openLocal, openSftp, closeTab, closePane, activeTab, splitFocused, toggleSidebar } from './store'
 import { zoomBy, zoomReset } from './appearance'
 
 const isMac = () => store.platform.os === 'macos'
@@ -175,6 +175,14 @@ export const ACTIONS = [
     pc: ['Ctrl+Right'],
   },
 
+  {
+    id: 'toggle_sidebar',
+    group: 'View',
+    label: 'Show / hide sidebar',
+    mac: ['Meta+B'],
+    pc: ['Ctrl+Shift+B'],
+    run: toggleSidebar,
+  },
   {
     id: 'zoom_in',
     group: 'View',

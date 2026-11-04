@@ -224,6 +224,21 @@ async function importConfig() {
           <div class="card pad">
             <div class="set">
               <div>
+                <b>Show sidebar</b>
+                <div class="dim">
+                  The menu on the left. Hide it for more room<span v-if="hint('toggle_sidebar')">
+                    · {{ hint('toggle_sidebar') }}</span
+                  >
+                </div>
+              </div>
+              <button
+                class="switch"
+                :class="{ on: !s.sidebar_hidden }"
+                @click="s.sidebar_hidden = !s.sidebar_hidden"
+              ></button>
+            </div>
+            <div class="set">
+              <div>
                 <b>Zoom</b>
                 <div class="dim">
                   Scales the whole interface, terminals included<span v-if="zoomKeys"> · {{ zoomKeys }}</span>

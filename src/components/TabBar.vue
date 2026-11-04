@@ -1,5 +1,5 @@
 <script setup>
-import { store, closeTab, openLocal, confirm, terminalDrop } from '../lib/store'
+import { store, closeTab, openLocal, confirm, terminalDrop, toggleSidebar } from '../lib/store'
 import Icon from './Icon.vue'
 import { installUpdate } from '../lib/updater'
 import { computed, ref } from 'vue'
@@ -123,7 +123,19 @@ const updateLabel = computed(() => {
 </script>
 
 <template>
-  <header class="tabs" :class="{ droptarget: store.paneToTabBar }" data-tauri-drag-region>
+  <header
+    class="tabs"
+    :class="{ droptarget: store.paneToTabBar, nosb: store.vault.settings.sidebar_hidden }"
+    data-tauri-drag-region
+  >
+    <button
+      v-if="store.vault.settings.sidebar_hidden"
+      class="iconbtn showsb"
+      :title="withHint('Show sidebar', 'toggle_sidebar')"
+      @click="toggleSidebar"
+    >
+      <Icon name="sidebar" :size="15" />
+    </button>
     <button class="tab vault" :class="{ on: store.active === 'vault' }" @click="store.active = 'vault'">
       <Icon name="grid" :size="14" /> Vault
     </button>
@@ -202,6 +214,9 @@ const updateLabel = computed(() => {
   padding: 0 10px;
   background: var(--side);
   border-bottom: 1px solid var(--line);
+}
+.showsb {
+  flex: none;
 }
 .scroll {
   position: relative;

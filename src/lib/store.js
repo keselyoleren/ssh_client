@@ -80,6 +80,10 @@ export function openLocal() {
   return openTerminal({ kind: 'local' }, 'Local')
 }
 
+export function toggleSidebar() {
+  store.vault.settings.sidebar_hidden = !store.vault.settings.sidebar_hidden
+}
+
 /** Open a workspace project: a local terminal in its folder, tinted with the workspace colour. */
 export function openProject(ws, p) {
   const tab = openTerminal(
