@@ -8,6 +8,8 @@
 
 Manage all your servers and remote storage from one fast, native app: no account, no cloud and no telemetry.
 
+**[Website](https://www.keselyoleren.com)** · **[Download](https://www.keselyoleren.com/download)** · **[User guide](https://www.keselyoleren.com/docs/)**
+
 [Features](#features) · [Install](#install) · [Build from source](#build-from-source) · [Docs](#documentation) · [Contributing](CONTRIBUTING.md)
 
 </div>
@@ -37,9 +39,10 @@ idles at a fraction of the memory of Electron-based clients.
 
 ## Install
 
-Installers (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`/`.rpm`) are built by the release workflow and published on
-the [Releases](https://github.com/keselyoleren/ssh_client/releases) page. Until the first release is out, build from
-source as described below.
+Download the installer for your system from **[keselyoleren.com/download](https://www.keselyoleren.com/download)**,
+which picks the right file automatically, or from the [Releases](https://github.com/keselyoleren/ssh_client/releases)
+page: `.dmg` (macOS, Apple Silicon and Intel), `.msi`/`.exe` (Windows), `.deb`/`.rpm`/`.AppImage` (Linux).
+Once installed, K-Shell updates itself: an **Update K-Shell** button appears when a new version is out.
 
 > **macOS:** builds are not notarised yet. On first launch, open the app once, then go to
 > **System Settings → Privacy & Security** and click **Open Anyway**.
@@ -93,6 +96,11 @@ Development builds use `vault-dev.bin` so they never touch your real data. Use *
 your vault between machines.
 
 ## Documentation
+
+- **[User guide](https://www.keselyoleren.com/docs/)**: how to use every feature, shortcuts, settings, security and
+  troubleshooting
+
+For contributors:
 
 - [Architecture](docs/ARCHITECTURE.md): how the pieces fit together, and how to add a protocol or a command
 - [Development guide](docs/DEVELOPMENT.md): setup, scripts, tests, debugging, releasing
