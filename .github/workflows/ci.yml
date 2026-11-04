@@ -58,6 +58,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libdbus-1-dev
       - run: mkdir -p dist && echo '<html></html>' > dist/index.html
+      # Registries (Docker Hub, lscr.io, mcr) sometimes answer "toomanyrequests"; retry the pull with a backoff
+      # so a rate limit doesn't fail the run before any test has started.
+      - name: Pull test server images
+        run: |
+          for i in 1 2 3 4; do
+            docker compose -f tests/servers/docker-compose.yml pull --quiet && exit 0
+            echo "Pull failed (attempt $i/4), retrying in $((i * 20))s"
+            sleep $((i * 20))
+          done
+          exit 1
       - run: docker compose -f tests/servers/docker-compose.yml up -d --wait
       - run: cargo test --test e2e -- --ignored --nocapture
         working-directory: src-tauri
