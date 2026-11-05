@@ -137,7 +137,7 @@ Output goes to `src-tauri/target/release/bundle/`.
 
 K-Shell uses [tauri-plugin-updater](https://v2.tauri.app/plugin/updater/):
 
-- The app checks `https://github.com/keselyoleren/ssh_client/releases/latest/download/latest.json` five seconds after
+- The app checks `https://github.com/keselyoleren/k-shell/releases/latest/download/latest.json` five seconds after
   launch and then every six hours (release builds only). *Settings → About → Check for updates* checks on demand.
 - When a newer version exists, an **Update K-Shell** button appears in the tab bar. Clicking it downloads the update,
   verifies its signature, installs it and restarts the app.

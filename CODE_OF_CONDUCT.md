@@ -30,7 +30,7 @@ commits, code, issues and other contributions that do not align with this Code o
 permanently ban contributors for behaviour they deem harmful.
 
 Report unacceptable behaviour privately to the maintainers through a
-[GitHub security advisory](https://github.com/keselyoleren/ssh_client/security/advisories/new) or by contacting
+[GitHub security advisory](https://github.com/keselyoleren/k-shell/security/advisories/new) or by contacting
 a maintainer directly. All reports are reviewed promptly and kept confidential.
 
 ## Attribution

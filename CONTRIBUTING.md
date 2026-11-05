@@ -9,15 +9,15 @@ contributors too.
   protocol involved (SSH / SFTP / FTP / S3).
 - **Suggest a feature:** open an issue with the *Feature request* template before writing large changes, so we can
   agree on the approach.
-- **Pick an issue:** look for [`good first issue`](https://github.com/keselyoleren/ssh_client/labels/good%20first%20issue)
-  and [`help wanted`](https://github.com/keselyoleren/ssh_client/labels/help%20wanted). Comment on it so nobody
+- **Pick an issue:** look for [`good first issue`](https://github.com/keselyoleren/k-shell/labels/good%20first%20issue)
+  and [`help wanted`](https://github.com/keselyoleren/k-shell/labels/help%20wanted). Comment on it so nobody
   duplicates your work.
 - **Security problems:** please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Getting set up
 
 ```bash
-git clone https://github.com/<you>/ssh_client.git k-shell
+git clone https://github.com/<you>/k-shell.git k-shell
 cd k-shell
 npm install
 npm run app:dev

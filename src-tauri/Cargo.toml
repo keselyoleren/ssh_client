@@ -4,7 +4,7 @@ version = "0.3.0"
 description = "Lightweight cross-platform SSH / SFTP / FTP / S3 client"
 authors = ["K-Shell contributors"]
 license = "MIT"
-repository = "https://github.com/keselyoleren/ssh_client"
+repository = "https://github.com/keselyoleren/k-shell"
 rust-version = "1.85"
 edition = "2021"
 
