@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-05
+
 ### Added
 - Broadcast input: type in one pane of a split tab and the other panes receive the same keystrokes, pastes,
   accepted autosuggestions and snippets. Turn it on with <kbd>⌥⌘I</kbd> / <kbd>Ctrl+Shift+I</kbd>, the command
