@@ -19,4 +19,8 @@ export default defineConfig({
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
   },
+  test: {
+    include: ['src/**/*.test.js'],
+    environment: 'node',
+  },
 })
