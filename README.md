@@ -40,7 +40,7 @@ idles at a fraction of the memory of Electron-based clients.
 ## Install
 
 Download the installer for your system from **[keselyoleren.com/download](https://www.keselyoleren.com/download)**,
-which picks the right file automatically, or from the [Releases](https://github.com/keselyoleren/ssh_client/releases)
+which picks the right file automatically, or from the [Releases](https://github.com/keselyoleren/k-shell/releases)
 page: `.dmg` (macOS, Apple Silicon and Intel), `.msi`/`.exe` (Windows), `.deb`/`.rpm`/`.AppImage` (Linux).
 Once installed, K-Shell updates itself: an **Update K-Shell** button appears when a new version is out.
 
@@ -53,7 +53,7 @@ Prerequisites: [Rust](https://rustup.rs) ≥ 1.85, [Node.js](https://nodejs.org)
 [Tauri system dependencies](https://tauri.app/start/prerequisites/) for your OS.
 
 ```bash
-git clone https://github.com/keselyoleren/ssh_client.git kshell
+git clone https://github.com/keselyoleren/k-shell.git kshell
 cd kshell
 npm install
 npm run app:dev      # run with hot reload

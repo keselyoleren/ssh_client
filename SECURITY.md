@@ -7,7 +7,7 @@ K-Shell stores credentials and connects to your servers, so we take security rep
 **Please do not open a public issue for security problems.**
 
 Report them privately through
-[GitHub → Security → Report a vulnerability](https://github.com/keselyoleren/ssh_client/security/advisories/new).
+[GitHub → Security → Report a vulnerability](https://github.com/keselyoleren/k-shell/security/advisories/new).
 Include the affected version and OS, steps to reproduce, and the impact you expect.
 
 We aim to acknowledge reports within 72 hours and to release a fix for confirmed issues as fast as their severity
