@@ -105,13 +105,15 @@ export function connectHost(host) {
   return openTerminal({ kind: 'ssh', host: { ...host } }, host.label || host.host)
 }
 
-export function openSftp(host = null) {
+/** paths: folders to open first, { left (local side), right (host side) }. */
+export function openSftp(host = null, paths = null) {
   const tab = {
     id: uid(),
     kind: 'sftp',
     title: host ? host.label || host.host : 'File Manager',
     host: host ? { ...host } : null,
     color: host?.color || '',
+    ...(paths?.left || paths?.right ? { paths } : {}),
   }
   store.tabs.push(tab)
   store.active = tab.id
@@ -137,6 +139,7 @@ export function splitFocused(dir, target) {
     if (node.type === 'leaf') {
       if (node.id !== tab.focus) return node
       const nl = leaf(target || node.target)
+      if (!target && node.cwd) nl.cwd = node.cwd // a split of the same session opens in its folder
       tab.focus = nl.id
       return { type: 'split', id: uid(), dir, ratio: 0.5, children: [node, nl] }
     }
@@ -336,11 +339,12 @@ const hostOf = (ref) => (ref?.id ? store.vault.hosts.find((h) => h.id === ref.id
 function snapNode(n) {
   if (n.type === 'split') return { type: 'split', dir: n.dir, ratio: n.ratio, children: n.children.map(snapNode) }
   const t = n.target
+  const last = n.cwd ? { cwd: n.cwd } : {} // last folder the shell reported
   if (t.kind === 'local') {
     const { cwd, startup_command, title, workspace } = t
-    return { type: 'leaf', target: { kind: 'local', cwd, startup_command, title, workspace } }
+    return { type: 'leaf', ...last, target: { kind: 'local', cwd, startup_command, title, workspace } }
   }
-  return { type: 'leaf', target: { kind: 'ssh', host: hostRef(t.host) } }
+  return { type: 'leaf', ...last, target: { kind: 'ssh', host: hostRef(t.host) } }
 }
 function snapshot() {
   if (!store.vault.settings.restore_tabs) return null
@@ -360,9 +364,10 @@ function buildNode(n) {
     if (kids.length < 2) return kids[0] || null
     return { type: 'split', id: uid(), dir: n.dir, ratio: n.ratio || 0.5, children: kids }
   }
-  if (n.target?.kind === 'local') return leaf({ ...n.target })
-  const h = hostOf(n.target?.host)
-  return h ? leaf({ kind: 'ssh', host: { ...h } }) : null
+  const h = n.target?.kind === 'local' ? null : hostOf(n.target?.host)
+  const l = n.target?.kind === 'local' ? leaf({ ...n.target }) : h ? leaf({ kind: 'ssh', host: { ...h } }) : null
+  if (l && n.cwd) l.cwd = n.cwd
+  return l
 }
 
 /** Reopen the tabs saved by the last run (called once, after the vault is loaded). */

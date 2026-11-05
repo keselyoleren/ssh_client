@@ -41,7 +41,11 @@ async function connect(side) {
     side.fsid = r.id
     side.sep = r.sep
     side.connecting = false
-    await paneOf(side).value.list(r.home)
+    // first connect of a tab opened from a terminal: start in the shell's folder
+    const start = props.tab.paths?.[side === left ? 'left' : 'right']
+    if (start) delete props.tab.paths[side === left ? 'left' : 'right']
+    await paneOf(side).value.list(start || r.home)
+    if (start && side.error) await paneOf(side).value.list(r.home) // folder gone: fall back to home
   } catch (e) {
     side.connecting = false
     side.error = String(e)

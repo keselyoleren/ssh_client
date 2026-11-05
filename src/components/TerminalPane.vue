@@ -158,19 +158,27 @@ function acceptGhost(word) {
 const MARK = new TextEncoder().encode(MARKER)
 let inj = null // { id, phase: 'wait' | 'hide', seen, chunks, quiet, max }
 
-function wantPrompt() {
+/**
+ * What to type into a fresh shell, or null: the K-Shell prompt, the working-directory
+ * reporter (OSC 7) and, after a reconnect or a reopened tab, a cd back to the last folder.
+ */
+function injectionPlan() {
   const s = S()
-  if (!s.prompt_enabled || !s.prompt_segments?.length) return false
-  const scope = s.prompt_scope || 'all'
-  if (target.kind === 'local')
-    return (
-      scope !== 'ssh' &&
-      store.platform.os !== 'windows' &&
+  const local = target.kind === 'local'
+  // Only into a plain bash/zsh login shell: a startup command (tmux attach, sudo -i…) would
+  // receive the line instead.
+  const safe = local
+    ? store.platform.os !== 'windows' &&
       !target.startup_command?.trim() &&
-      (!s.local_shell?.trim() || /(^|\/)(bash|zsh)$/.test(s.local_shell.trim())) // the prompt is bash/zsh only
-    )
-  // a startup command (tmux attach, sudo -i…) would receive the snippet instead of the login shell
-  return scope !== 'local' && !target.host.startup_command?.trim()
+      (!s.local_shell?.trim() || /(^|\/)(bash|zsh)$/.test(s.local_shell.trim()))
+    : !target.host.startup_command?.trim()
+  if (!safe) return null
+  const scope = s.prompt_scope || 'all'
+  const prompt =
+    s.prompt_enabled && s.prompt_segments?.length && scope !== (local ? 'ssh' : 'local') ? s.prompt_segments : null
+  const cwd = s.track_cwd !== false
+  const cd = !local && cwd ? props.leaf.cwd || '' : '' // local shells are started in the folder directly
+  return prompt || cwd || cd ? { prompt, cwd, cd } : null
 }
 function cancelPrompt() {
   if (!inj) return
@@ -180,8 +188,16 @@ function cancelPrompt() {
   inj = null
   for (const c of chunks) term.write(c)
 }
-function armPrompt(id) {
-  inj = { id, phase: 'wait', seen: false, chunks: [], quiet: 0, max: setTimeout(() => firePrompt(id, true), 5000) }
+function armPrompt(id, plan) {
+  inj = {
+    id,
+    plan,
+    phase: 'wait',
+    seen: false,
+    chunks: [],
+    quiet: 0,
+    max: setTimeout(() => firePrompt(id, true), 5000),
+  }
 }
 function firePrompt(id, force = false) {
   if (!inj || inj.id !== id || sid !== id || inj.phase !== 'wait') return
@@ -190,7 +206,7 @@ function firePrompt(id, force = false) {
   clearTimeout(inj.max)
   inj.phase = 'hide'
   inj.max = setTimeout(cancelPrompt, 5000) // no marker (slow link, not bash/zsh-like): show what happened
-  write(promptInjection(S().prompt_segments))
+  write(promptInjection(inj.plan))
 }
 function indexOfBytes(hay, needle) {
   outer: for (let i = 0; i <= hay.length - needle.length; i++) {
@@ -228,7 +244,8 @@ async function connect() {
   message.value = ''
   cancelPrompt()
   tracker.reset()
-  if (wantPrompt()) armPrompt(id)
+  const plan = injectionPlan()
+  if (plan) armPrompt(id, plan)
   const ch = new Channel()
   ch.onmessage = (m) => {
     if (sid !== id) return
@@ -256,7 +273,8 @@ async function connect() {
         cols: term.cols,
         rows: term.rows,
         shell: S().local_shell?.trim() || null,
-        cwd: target.cwd || S().local_cwd?.trim() || null,
+        // last folder the shell reported (reconnect, reopened tab), else where it was opened
+        cwd: props.leaf.cwd || target.cwd || S().local_cwd?.trim() || null,
         startupCommand: target.startup_command || null,
         onData: ch,
       })
@@ -278,6 +296,10 @@ async function connect() {
     scheduleFit()
   } catch (e) {
     cancelPrompt()
+    if (target.kind === 'local' && props.leaf.cwd) {
+      delete props.leaf.cwd // the last folder is gone: open where the terminal normally starts
+      return connect()
+    }
     status.value = 'error'
     message.value = String(e)
     if (retries > 0) {
@@ -494,9 +516,13 @@ function menu(e) {
     '-',
     { label: 'Split right', icon: 'splitH', action: () => splitFocused('row') },
     { label: 'Split down', icon: 'splitV', action: () => splitFocused('col') },
-    ...(target.kind === 'ssh'
-      ? [{ label: 'Open SFTP here', icon: 'folder', action: () => openSftp(target.host) }]
-      : []),
+    target.kind === 'ssh'
+      ? { label: 'Open SFTP here', icon: 'folder', action: () => openSftp(target.host, { right: props.leaf.cwd }) }
+      : {
+          label: 'Open in file manager',
+          icon: 'folder',
+          action: () => openSftp(null, { left: props.leaf.cwd || target.cwd }),
+        },
     ...(store.vault.snippets.length
       ? [
           '-',
@@ -574,6 +600,21 @@ onMounted(async () => {
   term.onScroll(refreshGhost)
   term.onResize(refreshGhost)
   term.onBell(bell)
+  // OSC 7 (file://host/path): the shell's working directory, from our hook or the shell itself
+  term.parser.registerOscHandler(7, (data) => {
+    const m = /^file:\/\/[^/]*(\/.*)$/.exec(data)
+    if (m) {
+      let dir = m[1]
+      try {
+        dir = decodeURIComponent(dir)
+      } catch {
+        /* sent unencoded */
+      }
+      if (/^\/[A-Za-z]:\//.test(dir)) dir = dir.slice(1) // file:///C:/… on Windows
+      if (props.leaf.cwd !== dir) props.leaf.cwd = dir
+    }
+    return true
+  })
   term.onSelectionChange(() => {
     if (S().copy_on_select && term.hasSelection()) copySel()
   })

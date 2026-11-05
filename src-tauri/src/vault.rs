@@ -179,6 +179,8 @@ pub struct Settings {
     /// Local terminals: shell to run (empty = the system default) and folder to start in.
     pub local_shell: String,
     pub local_cwd: String,
+    /// Follow the shell's working directory (OSC 7; a small hook is added to bash/zsh).
+    pub track_cwd: bool,
 }
 
 impl Default for Settings {
@@ -219,6 +221,7 @@ impl Default for Settings {
             paste_warn: true,
             local_shell: String::new(),
             local_cwd: String::new(),
+            track_cwd: true,
         }
     }
 }

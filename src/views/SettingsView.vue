@@ -678,6 +678,16 @@ async function importConfig() {
             </div>
             <div class="set">
               <div>
+                <b>Follow the working directory</b>
+                <div class="dim">
+                  Splits, reconnects and reopened tabs return to the shell's last folder, and "Open SFTP here" opens it.
+                  Adds a small hook to new bash and zsh sessions
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.track_cwd }" @click="s.track_cwd = !s.track_cwd"></button>
+            </div>
+            <div class="set">
+              <div>
                 <b>Warn before pasting several lines</b>
                 <div class="dim">Shows what will be pasted first, since each line can run as a command</div>
               </div>
