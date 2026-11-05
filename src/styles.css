@@ -17,6 +17,8 @@
   --ok: #22c55e;
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
   --radius: 10px;
+  /* menu items (sidebar, context menu, settings sections, tabs): brighter than --text-2 */
+  --menu-text: color-mix(in srgb, var(--text) 82%, var(--text-2));
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -33,6 +35,7 @@
   --accent-2: #2f5d8a;
   --accent-ink: #ffffff;
   --shadow: 0 10px 40px rgba(20, 30, 60, 0.15);
+  --menu-text: color-mix(in srgb, var(--text) 85%, var(--text-2));
   color-scheme: light;
 }
 
@@ -403,9 +406,12 @@ button {
   border-radius: 6px;
   cursor: pointer;
   text-align: left;
+  color: var(--menu-text);
+  font-weight: 500;
 }
 .menu button:hover {
   background: var(--bg-3);
+  color: var(--text);
 }
 .menu button.danger {
   color: var(--danger);
@@ -419,4 +425,17 @@ button {
 /* Sidebar hidden: on macOS the window buttons (traffic lights) sit over the tab bar. */
 :root[data-os='macos'] .tabs.nosb {
   padding-left: 80px;
+}
+
+/* Menus: subpixel-style rendering and a heavier icon stroke so labels read crisply. */
+.side nav,
+.menu,
+.snav,
+.tabs .tab {
+  -webkit-font-smoothing: auto;
+}
+.side nav .icon,
+.menu .icon,
+.snav .icon {
+  stroke-width: 2.1;
 }

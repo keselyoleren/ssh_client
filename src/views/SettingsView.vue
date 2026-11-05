@@ -670,7 +670,8 @@ async function importConfig() {
   border: 0;
   border-radius: 7px;
   background: none;
-  color: var(--text-2);
+  color: var(--menu-text);
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
 }
@@ -681,7 +682,7 @@ async function importConfig() {
 .snav button.on {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 650;
 }
 .sbody {
   flex: 1;

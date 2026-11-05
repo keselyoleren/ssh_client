@@ -333,13 +333,15 @@ const updateLabel = computed(() => {
   border-radius: 8px;
   border: 1px solid transparent;
   background: none;
-  color: var(--text-2);
+  color: var(--menu-text);
+  font-weight: 500;
   cursor: pointer;
   flex: none;
   max-width: 220px;
 }
 .tab:hover {
   background: var(--bg-3);
+  color: var(--text);
 }
 .tab.on {
   background: var(--bg-3);
