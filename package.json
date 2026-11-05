@@ -11,9 +11,10 @@
     "app:build": "tauri build",
     "format": "prettier --write \"src/**/*.{js,vue,css}\"",
     "format:check": "prettier --check \"src/**/*.{js,vue,css}\"",
+    "test:unit": "vitest run",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:e2e": "docker compose -f tests/servers/docker-compose.yml up -d --wait && cargo test --manifest-path src-tauri/Cargo.toml --test e2e --test object_storage -- --ignored --nocapture; docker compose -f tests/servers/docker-compose.yml down",
-    "check": "npm run format:check && npm run build && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test"
+    "check": "npm run format:check && npm run test:unit && npm run build && cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
@@ -41,7 +42,8 @@
     "@tauri-apps/cli": "^2.12.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "prettier": "^3.9.10",
-    "vite": "^7.2.0"
+    "vite": "^7.2.0",
+    "vitest": "^5.1.0"
   },
   "allowScripts": {
     "esbuild@0.28.2": true
