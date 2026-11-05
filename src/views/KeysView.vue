@@ -11,6 +11,13 @@ const busy = ref(false)
 const gen = reactive({ name: '', kind: 'ed25519', passphrase: '' })
 const imp = reactive({ name: '', pem: '', passphrase: '' })
 const inst = reactive({ key: null, host: '' })
+const layout = ref(localStorage.getItem('keys.layout') || 'list')
+const setLayout = (l) => {
+  layout.value = l
+  try {
+    localStorage.setItem('keys.layout', l)
+  } catch {}
+}
 
 async function generate() {
   busy.value = true
@@ -112,6 +119,14 @@ function menu(e, k) {
   <div class="page">
     <div class="page-head">
       <h1>Keychain</h1>
+      <template v-if="store.vault.keys.length">
+        <button class="iconbtn" :class="{ active: layout === 'grid' }" @click="setLayout('grid')" title="Grid">
+          <Icon name="grid" />
+        </button>
+        <button class="iconbtn" :class="{ active: layout === 'list' }" @click="setLayout('list')" title="List">
+          <Icon name="list" />
+        </button>
+      </template>
       <button class="btn" @click="modal = 'import'"><Icon name="import" :size="14" /> Import</button>
       <button class="btn primary" @click="modal = 'gen'"><Icon name="plus" :size="14" /> Generate Key</button>
     </div>
@@ -120,6 +135,25 @@ function menu(e, k) {
         <Icon name="key" :size="40" />
         <div class="big">No SSH keys</div>
         <div>Generate an Ed25519 key or import an existing one. Keys are stored encrypted in your local vault.</div>
+      </div>
+      <div v-else-if="layout === 'grid'" class="grid">
+        <div v-for="k in store.vault.keys" :key="k.id" class="kcard card" @contextmenu="menu($event, k)">
+          <div class="khead">
+            <span class="badge" style="background: #b07d2b"><Icon name="key" /></span>
+            <div class="kname">{{ k.name }}</div>
+            <button class="iconbtn" @click="menu($event, k)"><Icon name="more" /></button>
+          </div>
+          <div class="row" style="gap: 6px; flex-wrap: wrap">
+            <span class="chip">{{ k.kind }}</span>
+            <span v-if="k.passphrase" class="chip"><Icon name="lock" :size="10" />&nbsp;passphrase</span>
+          </div>
+          <div class="dim mono fp" :title="k.fingerprint">{{ k.fingerprint }}</div>
+          <div class="kfoot">
+            <span class="dim">{{ usedBy(k) ? `${usedBy(k)} host(s) · ` : '' }}{{ fmtTime(k.created_at) }}</span>
+            <button class="iconbtn" title="Copy public key" @click="copyPub(k)"><Icon name="copy" /></button>
+            <button class="iconbtn" title="Install on host" @click="openInstall(k)"><Icon name="send" /></button>
+          </div>
+        </div>
       </div>
       <div v-else class="card">
         <div v-for="k in store.vault.keys" :key="k.id" class="list-row" @contextmenu="menu($event, k)">
@@ -228,3 +262,54 @@ function menu(e, k) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.kcard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  min-width: 0;
+  transition: border-color 0.12s;
+}
+.kcard:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+}
+.khead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kname {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fp {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kfoot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+.kfoot .dim {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

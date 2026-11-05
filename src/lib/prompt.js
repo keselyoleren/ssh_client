@@ -100,18 +100,13 @@ function fnBody(shell, ids) {
 }
 
 /** Shell code (bash + zsh) that installs the prompt in the current shell. */
-export function promptScript(ids, { injected = false } = {}) {
-  // bash: drop the typed injection line from history (it contains the marker text 7770).
-  // zsh adds the line before we run, so it stays unless the user has HIST_IGNORE_SPACE.
-  const forget = injected
-    ? '; _ksp_h(){ case "$(history 1)" in *7770*) set -- $(history 1); history -d "$1";; esac; }; _ksp_h'
-    : ''
+export function promptScript(ids) {
   return [
     '_ksp_add(){ [ -n "$s" ] && p+=\' \'; p+="$1"; s=1; }',
     '_ksp_st(){ _ksp_e=$?; }',
     'export VIRTUAL_ENV_DISABLE_PROMPT=1',
     `if [ -n "$ZSH_VERSION" ]; then ${fnBody('zsh', ids)}; precmd_functions=(_ksp_st \${precmd_functions:#_ksp*} _ksp)`,
-    `else ${fnBody('bash', ids)}; PROMPT_COMMAND=$'_ksp_st\\n'"\${PROMPT_COMMAND}"$'\\n_ksp'${forget}; fi`,
+    `else ${fnBody('bash', ids)}; PROMPT_COMMAND=$'_ksp_st\\n'"\${PROMPT_COMMAND}"$'\\n_ksp'; fi`,
   ].join('; ')
 }
 
@@ -123,9 +118,32 @@ export function promptRcSnippet(ids) {
 const sq = (s) => `'${s.replace(/'/g, "'\\''")}'`
 
 /**
- * One line typed into a fresh shell. Shells other than bash/zsh skip the eval (fish parses
- * it but the test is false) and still print the marker so the echo can be hidden.
+ * Shell code (bash + zsh) that reports the working directory after every command with
+ * OSC 7 (file://host/path), the sequence terminals use to follow the shell's folder.
  */
-export function promptInjection(ids) {
-  return ` [ -n "$BASH_VERSION$ZSH_VERSION" ] && eval ${sq(promptScript(ids, { injected: true }))}; printf '\\033]7770;k\\007'\r`
+export const CWD_SCRIPT = [
+  `_kscwd(){ printf '\\033]7;file://%s%s\\007' "\${HOSTNAME:-$HOST}" "$PWD"; }`,
+  'if [ -n "$ZSH_VERSION" ]; then precmd_functions=(${precmd_functions:#_kscwd} _kscwd)',
+  `else case "$PROMPT_COMMAND" in *_kscwd*) ;; *) PROMPT_COMMAND="\${PROMPT_COMMAND}"$'\\n_kscwd';; esac; fi`,
+].join('; ')
+
+/**
+ * One line typed into a fresh shell, built from a plan:
+ *   prompt: segment ids of the K-Shell prompt (or null)
+ *   cwd:    report the working directory (OSC 7)
+ *   cd:     folder to change to first (reconnect / reopened tab)
+ * Shells other than bash/zsh skip the eval (fish parses it but the test is false) and still
+ * print the marker so the echo can be hidden.
+ */
+export function promptInjection({ prompt = null, cwd = false, cd = '' } = {}) {
+  const parts = []
+  if (cd) parts.push(`cd -- ${sq(cd)} 2>/dev/null`)
+  if (cwd) parts.push(CWD_SCRIPT)
+  if (prompt?.length) parts.push(promptScript(prompt))
+  // bash: drop the typed line from history (it contains the marker text 7770). zsh adds the
+  // line before we run, so it stays unless the user has HIST_IGNORE_SPACE.
+  parts.push(
+    '_ksp_h(){ case "$(history 1)" in *7770*) set -- $(history 1); history -d "$1";; esac; }; [ -n "$BASH_VERSION" ] && _ksp_h',
+  )
+  return ` [ -n "$BASH_VERSION$ZSH_VERSION" ] && eval ${sq(parts.join('; '))}; printf '\\033]7770;k\\007'\r`
 }

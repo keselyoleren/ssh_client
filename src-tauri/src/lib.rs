@@ -13,6 +13,7 @@ pub mod error;
 pub mod forward;
 pub mod fs;
 pub mod keys;
+pub mod sessionlog;
 pub mod ssh;
 pub mod ssh_config;
 pub mod state;
@@ -68,6 +69,7 @@ pub fn run() {
             vault::migrate_legacy_dir(&dir);
             let vault = vault::Vault::load(dir).map_err(|e| anyhow::anyhow!(e))?;
             app.manage(state::AppState::new(vault));
+            std::thread::spawn(fs::clean_open_copies);
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -87,6 +89,7 @@ pub fn run() {
             v::snippet_save,
             v::snippet_delete,
             v::settings_save,
+            v::session_save,
             v::workspace_save,
             v::workspace_delete,
             v::history_add,
@@ -99,6 +102,8 @@ pub fn run() {
             term::term_open_ssh,
             term::term_open_local,
             term::term_write,
+            term::log_dir,
+            term::log_dir_open,
             term::term_resize,
             term::term_close,
             term::ssh_exec,
@@ -114,6 +119,10 @@ pub fn run() {
             files::fs_remove,
             files::fs_chmod,
             files::fs_read_text,
+            files::fs_read_bytes,
+            files::fs_open_external,
+            files::fs_upload_back,
+            files::fs_unwatch,
             files::fs_write_text,
             files::fs_presign,
             files::local_stat,

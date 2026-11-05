@@ -93,6 +93,13 @@ pub fn settings_save(st: State, settings: Settings) -> Res<()> {
     st.vault.save()
 }
 
+/// Remember the open tabs so they can be reopened on the next launch.
+#[tauri::command]
+pub fn session_save(st: State, session: serde_json::Value) -> Res<()> {
+    st.vault.data.write().session = session;
+    st.vault.save()
+}
+
 #[tauri::command]
 pub fn workspace_save(st: State, mut workspace: Workspace) -> Res<Workspace> {
     if workspace.created_at == 0 {

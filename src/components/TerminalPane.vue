@@ -6,12 +6,27 @@ import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { api, Channel, asBytes, uid } from '../lib/api'
-import { store, panes, splitFocused, closePane, detachPane, openMenu, openSftp, loadVault } from '../lib/store'
+import {
+  store,
+  panes,
+  splitFocused,
+  closePane,
+  detachPane,
+  openMenu,
+  openSftp,
+  loadVault,
+  toggleBroadcast,
+  broadcastPeers,
+  confirm,
+} from '../lib/store'
 import { termTheme } from '../lib/appearance'
 import { actionFor, withHint } from '../lib/keymap'
 import { promptInjection, MARKER } from '../lib/prompt'
+import { resolveSnippet } from '../lib/snippetvars'
+import { createHighlighter } from '../lib/highlight'
 import { LineTracker, suggestFor, firstWord, cursorContext } from '../lib/suggest'
 import Icon from './Icon.vue'
 
@@ -28,6 +43,8 @@ const title = computed(() =>
   target.kind === 'local' ? target.title || 'Local' : target.host.label || target.host.host,
 )
 const focused = computed(() => props.tab.focus === props.leaf.id)
+/** This pane sends and receives broadcast input. */
+const broadcasting = computed(() => !!props.tab.broadcast && !props.leaf.noBroadcast)
 
 let term,
   fit,
@@ -47,7 +64,14 @@ function options() {
     lineHeight: s.line_height || 1.2,
     cursorStyle: s.cursor_style || 'block',
     cursorBlink: s.cursor_blink ?? true,
+    cursorInactiveStyle: s.cursor_inactive || 'outline',
     scrollback: s.scrollback || 10000,
+    fontWeight: s.font_weight || 'normal',
+    fontWeightBold: s.font_weight_bold || 'bold',
+    letterSpacing: +s.letter_spacing || 0,
+    minimumContrastRatio: +s.min_contrast || 1,
+    drawBoldTextInBrightColors: s.bold_bright ?? true,
+    macOptionIsMeta: s.option_meta ?? true,
     theme: theme(),
   }
 }
@@ -126,7 +150,7 @@ function track(d) {
 function acceptGhost(word) {
   const t = word ? firstWord(ghost.value.text) : ghost.value.text
   tracker.input(t)
-  write(t)
+  typed(t)
   ghost.value = null
 }
 
@@ -136,14 +160,27 @@ function acceptGhost(word) {
 const MARK = new TextEncoder().encode(MARKER)
 let inj = null // { id, phase: 'wait' | 'hide', seen, chunks, quiet, max }
 
-function wantPrompt() {
+/**
+ * What to type into a fresh shell, or null: the K-Shell prompt, the working-directory
+ * reporter (OSC 7) and, after a reconnect or a reopened tab, a cd back to the last folder.
+ */
+function injectionPlan() {
   const s = S()
-  if (!s.prompt_enabled || !s.prompt_segments?.length) return false
+  const local = target.kind === 'local'
+  // Only into a plain bash/zsh login shell: a startup command (tmux attach, sudo -i…) would
+  // receive the line instead.
+  const safe = local
+    ? store.platform.os !== 'windows' &&
+      !target.startup_command?.trim() &&
+      (!s.local_shell?.trim() || /(^|\/)(bash|zsh)$/.test(s.local_shell.trim()))
+    : !target.host.startup_command?.trim()
+  if (!safe) return null
   const scope = s.prompt_scope || 'all'
-  if (target.kind === 'local')
-    return scope !== 'ssh' && store.platform.os !== 'windows' && !target.startup_command?.trim()
-  // a startup command (tmux attach, sudo -i…) would receive the snippet instead of the login shell
-  return scope !== 'local' && !target.host.startup_command?.trim()
+  const prompt =
+    s.prompt_enabled && s.prompt_segments?.length && scope !== (local ? 'ssh' : 'local') ? s.prompt_segments : null
+  const cwd = s.track_cwd !== false
+  const cd = !local && cwd ? props.leaf.cwd || '' : '' // local shells are started in the folder directly
+  return prompt || cwd || cd ? { prompt, cwd, cd } : null
 }
 function cancelPrompt() {
   if (!inj) return
@@ -153,8 +190,16 @@ function cancelPrompt() {
   inj = null
   for (const c of chunks) term.write(c)
 }
-function armPrompt(id) {
-  inj = { id, phase: 'wait', seen: false, chunks: [], quiet: 0, max: setTimeout(() => firePrompt(id, true), 5000) }
+function armPrompt(id, plan) {
+  inj = {
+    id,
+    plan,
+    phase: 'wait',
+    seen: false,
+    chunks: [],
+    quiet: 0,
+    max: setTimeout(() => firePrompt(id, true), 5000),
+  }
 }
 function firePrompt(id, force = false) {
   if (!inj || inj.id !== id || sid !== id || inj.phase !== 'wait') return
@@ -163,7 +208,7 @@ function firePrompt(id, force = false) {
   clearTimeout(inj.max)
   inj.phase = 'hide'
   inj.max = setTimeout(cancelPrompt, 5000) // no marker (slow link, not bash/zsh-like): show what happened
-  write(promptInjection(S().prompt_segments))
+  write(promptInjection(inj.plan))
 }
 function indexOfBytes(hay, needle) {
   outer: for (let i = 0; i <= hay.length - needle.length; i++) {
@@ -201,7 +246,8 @@ async function connect() {
   message.value = ''
   cancelPrompt()
   tracker.reset()
-  if (wantPrompt()) armPrompt(id)
+  const plan = injectionPlan()
+  if (plan) armPrompt(id, plan)
   const ch = new Channel()
   ch.onmessage = (m) => {
     if (sid !== id) return
@@ -211,6 +257,11 @@ async function connect() {
     if (ev.type === 'exit') {
       cancelPrompt()
       status.value = 'closed'
+      // An SSH shell that ends without an exit status lost its connection: try again by itself.
+      if (target.kind === 'ssh' && ev.code == null && S().auto_reconnect !== false) {
+        term.write('\r\n\x1b[33m[connection lost]\x1b[0m\r\n')
+        return scheduleReconnect()
+      }
       term.write(
         `\r\n\x1b[2m[session closed${ev.code != null ? ' · exit ' + ev.code : ''}] press Enter to reconnect\x1b[0m\r\n`,
       )
@@ -223,8 +274,9 @@ async function connect() {
         id,
         cols: term.cols,
         rows: term.rows,
-        shell: null,
-        cwd: target.cwd || null,
+        shell: S().local_shell?.trim() || null,
+        // last folder the shell reported (reconnect, reopened tab), else where it was opened
+        cwd: props.leaf.cwd || target.cwd || S().local_cwd?.trim() || null,
         startupCommand: target.startup_command || null,
         onData: ch,
       })
@@ -241,24 +293,210 @@ async function connect() {
           .catch(() => {})
     }
     status.value = 'open'
+    retries = 0
     lastSize = term.cols + 'x' + term.rows
     scheduleFit()
   } catch (e) {
     cancelPrompt()
+    if (target.kind === 'local' && props.leaf.cwd) {
+      delete props.leaf.cwd // the last folder is gone: open where the terminal normally starts
+      return connect()
+    }
     status.value = 'error'
     message.value = String(e)
+    if (retries > 0) {
+      // reconnecting after a drop: the network may still be down, keep trying
+      term.write(`\x1b[2m✖ ${String(e)}\x1b[0m\r\n`)
+      return scheduleReconnect()
+    }
     term.write(`\r\n\x1b[31m✖ ${String(e)}\x1b[0m\r\n\x1b[2mPress Enter to retry\x1b[0m\r\n`)
   }
+}
+
+// ---------- auto-reconnect (SSH) ----------
+const RETRY_DELAYS = [1, 2, 4, 8, 15, 30, 30, 30, 30, 30] // seconds; about 3 minutes in all
+let retries = 0,
+  retryTimer = 0
+const reconnecting = ref(false)
+function scheduleReconnect() {
+  clearTimeout(retryTimer)
+  if (retries >= RETRY_DELAYS.length) {
+    reconnecting.value = false
+    retries = 0
+    term.write('\x1b[2mGave up reconnecting. Press Enter to try again.\x1b[0m\r\n')
+    return
+  }
+  const wait = RETRY_DELAYS[retries++]
+  reconnecting.value = true
+  term.write(
+    `\x1b[2mReconnecting in ${wait}s (attempt ${retries}/${RETRY_DELAYS.length}) · Enter: now · Ctrl+C: stop\x1b[0m\r\n`,
+  )
+  retryTimer = setTimeout(reconnectNow, wait * 1000)
+}
+function reconnectNow() {
+  clearTimeout(retryTimer)
+  reconnecting.value = false
+  if (unmounted) return
+  connect()
+}
+function stopReconnect() {
+  clearTimeout(retryTimer)
+  reconnecting.value = false
+  retries = 0
+  term.write('\x1b[2mStopped reconnecting. Press Enter to reconnect.\x1b[0m\r\n')
+}
+// Back online (Wi-Fi switched, laptop woke up): don't wait for the timer.
+function onOnline() {
+  if (reconnecting.value) reconnectNow()
 }
 
 const write = (data) => {
   if (sid && status.value === 'open') api.term_write({ id: sid, data }).catch(() => {})
 }
-async function paste() {
+
+// ---------- broadcast input ----------
+// xterm's onData also carries the terminal's own replies to the program running in it
+// (cursor position, device attributes, colour queries…), focus events and mouse reports.
+// Those belong to this pane only.
+const AUTOMATIC =
+  /^\x1b(\[[\d;?>]*[Rcn]|\[\?[\d;]*\$y|\[[IO]$|\[<[\d;]*[Mm]|\[M|\][\s\S]*(\x07|\x1b\\)$|P[\s\S]*\x1b\\$)/
+/** Send typed text to this pane and, with broadcast on, to the other panes of the tab. */
+function typed(d) {
+  write(d)
+  if (props.tab.broadcast && !AUTOMATIC.test(d)) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.input(d)
+}
+/** A whole command (snippet): every broadcasting pane runs it. */
+function runCommand(cmd) {
+  tracker.reset()
+  write(cmd)
+  if (props.tab.broadcast) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.write(cmd)
+}
+// ---------- keyword highlighting ----------
+let hl = null
+const configureHighlight = () => hl?.configure(S().highlight === false ? [] : S().highlight_rules, theme())
+watch(
+  () => [
+    S().highlight,
+    S().highlight_rules,
+    S().term_theme,
+    S().term_theme_light,
+    S().term_theme_sync,
+    store.systemDark,
+  ],
+  configureHighlight,
+  {
+    deep: true,
+  },
+)
+
+// ---------- renderer ----------
+// WebGL draws fast but every context holds GPU memory and a glyph atlas of a few MB, and
+// the webview only allows a handful of contexts at once. Panes of tabs you aren't looking
+// at give theirs back after a while (xterm falls back to its DOM renderer, which costs
+// nothing while hidden) and take a new one when they are shown again.
+const GL_IDLE_MS = 30_000
+let gl = null,
+  glTimer = 0
+function attachGl() {
+  if (gl || !term) return
   try {
-    const t = await readText()
-    if (t) term.paste(t)
-  } catch {}
+    const a = new WebglAddon()
+    a.onContextLoss(() => {
+      a.dispose()
+      if (gl === a) gl = null
+    })
+    term.loadAddon(a)
+    gl = a
+  } catch {
+    gl = null // no WebGL: the DOM renderer stays
+  }
+}
+function releaseGl() {
+  if (!gl) return
+  const a = gl
+  gl = null
+  a.dispose()
+}
+
+// ---------- files dropped from the OS: type their paths ----------
+const dropping = ref(false)
+let unlistenDrop = null,
+  unmounted = false
+/** Quote a path for the shell: POSIX single quotes, or double quotes for a Windows local shell. */
+function shellQuote(p) {
+  if (target.kind === 'local' && store.platform.os === 'windows') return /[\s&()^%!;,'"]/.test(p) ? `"${p}"` : p
+  return /^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+}
+/** Is the (physical-pixel) drop position over this pane? */
+function overMe(pos) {
+  if (store.active !== props.tab.id || !props.visible || !root.value) return false
+  const r = window.devicePixelRatio || 1
+  const x = pos.x / r,
+    y = pos.y / r
+  const b = root.value.getBoundingClientRect()
+  return x >= b.left && x < b.right && y >= b.top && y < b.bottom
+}
+function onDragDrop(ev) {
+  const p = ev.payload
+  if (p.type === 'enter' || p.type === 'over') dropping.value = status.value === 'open' && overMe(p.position)
+  else if (p.type === 'drop') {
+    const hit = dropping.value || (status.value === 'open' && overMe(p.position))
+    dropping.value = false
+    if (!hit || !p.paths?.length) return
+    props.tab.focus = props.leaf.id
+    term.paste(p.paths.map(shellQuote).join(' ') + ' ')
+    term.focus()
+  } else dropping.value = false
+}
+
+async function paste() {
+  let t
+  try {
+    t = await readText()
+  } catch {
+    return
+  }
+  if (!t) return
+  // Several lines run as several commands the moment they land in a shell: ask first.
+  if (S().paste_warn !== false && /[\r\n]/.test(t)) {
+    const lines = t.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n')
+    const preview = lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\n… ${lines.length - 6} more` : '')
+    const ok = await confirm(
+      `Paste ${lines.length} line${lines.length === 1 ? '' : 's'}?`,
+      lines.length === 1
+        ? 'It ends with a line break, so it runs as soon as it is pasted.'
+        : 'Each line may run as a command as soon as it is pasted.',
+      { okText: 'Paste', danger: false, detail: preview },
+    )
+    term.focus()
+    if (!ok) return
+  }
+  term.paste(t)
+}
+
+// ---------- bell ----------
+const ringing = ref(false)
+let audio = null
+function bell() {
+  const mode = S().bell || 'visual'
+  if (mode === 'visual' || mode === 'both') {
+    ringing.value = false
+    requestAnimationFrame(() => (ringing.value = true))
+    setTimeout(() => (ringing.value = false), 180)
+  }
+  if (mode === 'sound' || mode === 'both') {
+    try {
+      audio ||= new AudioContext()
+      const o = audio.createOscillator(),
+        g = audio.createGain()
+      o.frequency.value = 880
+      g.gain.setValueAtTime(0.08, audio.currentTime)
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.15)
+      o.connect(g).connect(audio.destination)
+      o.start()
+      o.stop(audio.currentTime + 0.15)
+    } catch {}
+  }
 }
 function copySel() {
   const s = term.getSelection()
@@ -298,9 +536,13 @@ function menu(e) {
     '-',
     { label: 'Split right', icon: 'splitH', action: () => splitFocused('row') },
     { label: 'Split down', icon: 'splitV', action: () => splitFocused('col') },
-    ...(target.kind === 'ssh'
-      ? [{ label: 'Open SFTP here', icon: 'folder', action: () => openSftp(target.host) }]
-      : []),
+    target.kind === 'ssh'
+      ? { label: 'Open SFTP here', icon: 'folder', action: () => openSftp(target.host, { right: props.leaf.cwd }) }
+      : {
+          label: 'Open in file manager',
+          icon: 'folder',
+          action: () => openSftp(null, { left: props.leaf.cwd || target.cwd }),
+        },
     ...(store.vault.snippets.length
       ? [
           '-',
@@ -308,14 +550,33 @@ function menu(e) {
             label: s.name,
             icon: 'code',
             action: () => {
-              tracker.reset()
-              write(s.command + '\r')
-              term.focus()
+              resolveSnippet(s).then((cmd) => {
+                if (cmd != null) runCommand(cmd + '\r')
+                term.focus()
+              })
             },
           })),
         ]
       : []),
     '-',
+    ...(props.split
+      ? [
+          {
+            label: props.tab.broadcast ? 'Stop broadcasting input' : 'Broadcast input to all panes',
+            icon: 'broadcast',
+            action: () => toggleBroadcast(props.tab),
+          },
+        ]
+      : []),
+    ...(props.tab.broadcast
+      ? [
+          {
+            label: props.leaf.noBroadcast ? 'Include this pane in broadcast' : 'Leave this pane out of broadcast',
+            icon: 'broadcast',
+            action: () => (props.leaf.noBroadcast = !props.leaf.noBroadcast),
+          },
+        ]
+      : []),
     ...(props.split
       ? [{ label: 'Move to new tab', icon: 'popout', action: () => detachPane(props.tab, props.leaf.id) }]
       : []),
@@ -327,8 +588,6 @@ onMounted(async () => {
   term = new Terminal({
     ...options(),
     allowProposedApi: true,
-    macOptionIsMeta: true,
-    drawBoldTextInBrightColors: true,
     rightClickSelectsWord: false,
   })
   fit = new FitAddon()
@@ -341,20 +600,19 @@ onMounted(async () => {
     }),
   )
   term.open(el.value)
-  try {
-    const gl = new WebglAddon()
-    gl.onContextLoss(() => gl.dispose())
-    term.loadAddon(gl)
-  } catch {
-    /* falls back to DOM renderer */
-  }
+  if (props.visible) attachGl()
+  hl = createHighlighter(term)
+  configureHighlight()
+  term.onWriteParsed(() => hl.schedule())
 
   term.onData((d) => {
     if (status.value === 'open') {
       track(d)
-      return write(d)
+      return typed(d)
     }
+    if (reconnecting.value && d === '\x03') return stopReconnect()
     if (d === '\r' && status.value !== 'connecting') {
+      if (reconnecting.value) return reconnectNow()
       term.clear()
       connect()
     }
@@ -366,6 +624,22 @@ onMounted(async () => {
   term.onCursorMove(refreshGhost)
   term.onScroll(refreshGhost)
   term.onResize(refreshGhost)
+  term.onBell(bell)
+  // OSC 7 (file://host/path): the shell's working directory, from our hook or the shell itself
+  term.parser.registerOscHandler(7, (data) => {
+    const m = /^file:\/\/[^/]*(\/.*)$/.exec(data)
+    if (m) {
+      let dir = m[1]
+      try {
+        dir = decodeURIComponent(dir)
+      } catch {
+        /* sent unencoded */
+      }
+      if (/^\/[A-Za-z]:\//.test(dir)) dir = dir.slice(1) // file:///C:/… on Windows
+      if (props.leaf.cwd !== dir) props.leaf.cwd = dir
+    }
+    return true
+  })
   term.onSelectionChange(() => {
     if (S().copy_on_select && term.hasSelection()) copySel()
   })
@@ -415,11 +689,22 @@ onMounted(async () => {
       tracker.reset() // snippets run as whole commands
       write(t)
     },
+    /** Keystrokes broadcast from another pane of the tab. */
+    input: (d) => {
+      if (status.value !== 'open') return // never reconnect a closed pane from another pane's Enter
+      track(d)
+      write(d)
+    },
     focus: () => term.focus(),
     term,
   })
   ro = new ResizeObserver(scheduleFit)
   ro.observe(el.value)
+  window.addEventListener('online', onOnline)
+  getCurrentWebview()
+    .onDragDropEvent(onDragDrop)
+    .then((u) => (unmounted ? u() : (unlistenDrop = u)))
+    .catch(() => {})
   await nextTick()
   doFit()
   connect()
@@ -429,11 +714,14 @@ onMounted(async () => {
 watch(
   () => props.visible,
   (v) => {
+    clearTimeout(glTimer)
     if (v)
       nextTick(() => {
+        attachGl()
         doFit()
         if (focused.value) term?.focus()
       })
+    else glTimer = setTimeout(releaseGl, GL_IDLE_MS)
   },
 )
 watch(
@@ -458,6 +746,13 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(ghostRaf)
   ro?.disconnect()
   cancelAnimationFrame(raf)
+  unmounted = true
+  hl?.dispose()
+  clearTimeout(glTimer)
+  audio?.close().catch(() => {})
+  clearTimeout(retryTimer)
+  window.removeEventListener('online', onOnline)
+  unlistenDrop?.()
   panes.delete(props.leaf.id)
   if (sid) api.term_close({ id: sid }).catch(() => {})
   sid = null
@@ -466,7 +761,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="tp" :class="{ focused: focused && split }" :style="{ background: theme().background }">
+  <div
+    ref="root"
+    class="tp"
+    :class="{ focused: focused && split, broadcasting, dropping, ringing }"
+    :style="{ background: theme().background }"
+  >
     <div
       v-if="split"
       class="ph"
@@ -474,8 +774,21 @@ onBeforeUnmount(() => {
       title="Drag to move this pane"
       @mousedown="emit('grab', $event, title)"
     >
-      <span class="st" :class="status"></span>
+      <span class="st" :class="reconnecting ? 'connecting' : status"></span>
       <span class="t">{{ title }}</span>
+      <button
+        v-if="tab.broadcast"
+        class="iconbtn bc"
+        :class="{ off: leaf.noBroadcast }"
+        @click="leaf.noBroadcast = !leaf.noBroadcast"
+        :title="
+          leaf.noBroadcast
+            ? 'Not receiving broadcast input: click to include this pane'
+            : 'Receiving broadcast input: click to leave this pane out'
+        "
+      >
+        <Icon name="broadcast" :size="13" />
+      </button>
       <button class="iconbtn" @click="splitFocused('row')" title="Split right">
         <Icon name="splitH" :size="13" />
       </button>
@@ -546,6 +859,33 @@ onBeforeUnmount(() => {
 }
 .tp.focused {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tp.broadcasting {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
+.tp.broadcasting.focused {
+  border-color: var(--warn);
+}
+.tp.ringing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  z-index: 5;
+}
+.tp.dropping,
+.tp.dropping.broadcasting {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.ph .bc {
+  color: var(--warn);
+  opacity: 1;
+}
+.ph .bc.off {
+  color: inherit;
+  opacity: 0.45;
 }
 .xt {
   flex: 1;

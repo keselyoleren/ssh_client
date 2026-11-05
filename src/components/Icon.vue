@@ -36,6 +36,8 @@ const P = {
   check: 'M20 6L9 17l-5-5',
   lock: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',
   zap: 'M13 2L3 14h9l-1 8 10-12h-9z',
+  broadcast:
+    'M12 12h.01M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8',
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   send: 'M22 2L11 13M22 2l-7 20-4-9-9-4z',

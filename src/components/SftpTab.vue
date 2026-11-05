@@ -5,6 +5,8 @@ import { api, Channel, uid, fmtSize } from '../lib/api'
 import { store, err, toast } from '../lib/store'
 import FilePane from './FilePane.vue'
 import TextEditor from './TextEditor.vue'
+import ImageViewer from './ImageViewer.vue'
+import { fileKind, runsWhenOpened } from '../lib/filetypes'
 import Icon from './Icon.vue'
 
 const props = defineProps({ tab: Object })
@@ -39,7 +41,11 @@ async function connect(side) {
     side.fsid = r.id
     side.sep = r.sep
     side.connecting = false
-    await paneOf(side).value.list(r.home)
+    // first connect of a tab opened from a terminal: start in the shell's folder
+    const start = props.tab.paths?.[side === left ? 'left' : 'right']
+    if (start) delete props.tab.paths[side === left ? 'left' : 'right']
+    await paneOf(side).value.list(start || r.home)
+    if (start && side.error) await paneOf(side).value.list(r.home) // folder gone: fall back to home
   } catch (e) {
     side.connecting = false
     side.error = String(e)
@@ -50,7 +56,7 @@ const otherOf = (side) => (side === left ? right : left)
 
 function pick(side, hostId) {
   side.host = hostId ? { ...store.vault.hosts.find((h) => h.id === hostId) } : null
-  if (side === right) props.tab.title = side.host ? side.host.label || side.host.host : 'Local'
+  if (side === right && !props.tab.renamed) props.tab.title = side.host ? side.host.label || side.host.host : 'Local'
   connect(side)
 }
 
@@ -193,6 +199,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   unlisten?.()
+  for (const ed of externals) api.fs_unwatch({ wid: ed.wid }).catch(() => {})
   for (const s of [left, right]) if (s.fsid) api.fs_close({ id: s.fsid })
   if (localFs) api.fs_close({ id: localFs })
 })
@@ -202,9 +209,66 @@ function closeEditor() {
   editing.value = null
   if (side) paneOf(side).value?.list()
 }
-function edit(side, e) {
+/** Open a file: mode 'text' | 'image' | 'external', or by its type when not given. */
+function edit(side, e, mode) {
+  mode ||= { image: 'image', binary: 'external' }[fileKind(e.name)] || 'text'
+  if (mode === 'external') return openExternal(side, e)
+  if (mode === 'image') return (viewing.value = { side, entry: e })
   if (e.size > 8 * 1024 * 1024) return toast('File too large to edit — transfer it instead', 'error')
   editing.value = { side, entry: e }
+}
+const viewing = ref(null) // image preview
+/** Hand the file to the app the OS associates with it (remote files: a downloaded copy). */
+async function openExternal(side, e) {
+  viewing.value = null
+  if (runsWhenOpened(e.name))
+    return toast(`K-Shell doesn't open ${e.name}: opening it would run or install it. Download it instead.`, 'error')
+  const remote = !!side.host
+  if (remote) toast(`Downloading ${e.name}…`)
+  try {
+    const ch = new Channel()
+    const wid = await api.fs_open_external({ id: side.fsid, path: e.path, onChange: ch })
+    if (!wid) return
+    const ed = reactive({
+      wid,
+      name: e.name,
+      path: e.path,
+      host: side.host.label || side.host.host,
+      side,
+      state: 'open',
+    })
+    ch.onmessage = () => {
+      if (ed.state !== 'uploading') ed.state = 'changed'
+    }
+    externals.unshift(ed)
+    toast(`${e.name} opened in its app: save it there and K-Shell offers to upload it`)
+  } catch (x) {
+    err(x)
+  }
+}
+
+// ---------- remote files open in other apps ----------
+const externals = reactive([]) // { wid, name, path, host, side, state: open | changed | uploading }
+async function uploadBack(ed) {
+  ed.state = 'uploading'
+  try {
+    await api.fs_upload_back({ wid: ed.wid })
+    ed.state = 'open'
+    toast(`Uploaded ${ed.name} to ${ed.host}`)
+    paneOf(ed.side).value?.list()
+  } catch (x) {
+    ed.state = 'changed'
+    err(x)
+  }
+}
+function stopWatching(ed) {
+  api.fs_unwatch({ wid: ed.wid }).catch(() => {})
+  externals.splice(externals.indexOf(ed), 1)
+}
+/** The editor found binary content: offer the default app instead. */
+function notText(side, e) {
+  editing.value = null
+  openExternal(side, e)
 }
 </script>
 
@@ -234,6 +298,33 @@ function edit(side, e) {
         @edit="edit"
         @dragstart="dragstart"
       />
+    </div>
+    <div v-if="externals.length" class="exts">
+      <div v-for="ed in externals" :key="ed.wid" class="ext" :class="ed.state">
+        <Icon :name="ed.state === 'open' ? 'eye' : 'edit'" :size="14" />
+        <span class="ename mono" :title="ed.path">{{ ed.name }}</span>
+        <span class="dim">
+          {{
+            ed.state === 'changed'
+              ? `changed in another app · not on ${ed.host} yet`
+              : ed.state === 'uploading'
+                ? 'uploading…'
+                : `open in another app · saves are offered for upload to ${ed.host}`
+          }}
+        </span>
+        <div style="flex: 1"></div>
+        <button
+          v-if="ed.state !== 'open'"
+          class="btn sm primary"
+          :disabled="ed.state === 'uploading'"
+          @click="uploadBack(ed)"
+        >
+          <Icon name="upload" :size="12" /> Upload
+        </button>
+        <button class="iconbtn" title="Stop watching this file" @click="stopWatching(ed)">
+          <Icon name="x" :size="13" />
+        </button>
+      </div>
     </div>
     <div v-if="transfers.length" class="xfers">
       <div class="xh">
@@ -273,7 +364,20 @@ function edit(side, e) {
     <div v-if="ghost.on" class="drag-ghost" :style="{ left: ghost.x + 12 + 'px', top: ghost.y + 8 + 'px' }">
       <Icon name="file" :size="13" /> {{ ghost.text }}
     </div>
-    <TextEditor v-if="editing" :side="editing.side" :entry="editing.entry" @close="closeEditor" />
+    <TextEditor
+      v-if="editing"
+      :side="editing.side"
+      :entry="editing.entry"
+      @close="closeEditor"
+      @binary="notText(editing.side, editing.entry)"
+    />
+    <ImageViewer
+      v-if="viewing"
+      :side="viewing.side"
+      :entry="viewing.entry"
+      @close="viewing = null"
+      @external="openExternal(viewing.side, viewing.entry)"
+    />
   </div>
 </template>
 
@@ -293,6 +397,40 @@ function edit(side, e) {
 }
 .split {
   background: var(--line);
+}
+.exts {
+  flex: none;
+  max-height: 30%;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.ext {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 14px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.ext:last-child {
+  border-bottom: 0;
+}
+.ext .ename {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ext .dim {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext.changed {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.ext.changed .icon {
+  color: var(--warn);
 }
 .xfers {
   flex: none;

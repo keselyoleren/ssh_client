@@ -51,15 +51,15 @@ networking core and **Vue 3 + [xterm.js](https://xtermjs.org)** (WebGL) for the 
 | Area | What you get |
 |---|---|
 | **Hosts** | Groups, tags, colours, automatic OS detection, search, recent hosts, grid/list view, duplicate, test connection, import from `~/.ssh/config` |
-| **Terminal** | Tabs, split panes (side by side / stacked, resizable; drag panes by their header to rearrange, drag a tab onto a terminal to merge it as a split), find, copy-on-select, right-click paste, 9 colour themes (optionally a separate one for light mode), custom bash/zsh prompt builder, history autosuggestions, startup command, one-key reconnect, local shell, workspaces that group local project folders (open one or all in their folder, with an optional startup command) |
+| **Terminal** | Tabs (rename, reopened on launch), split panes (side by side / stacked, resizable; drag panes by their header to rearrange, drag a tab onto a terminal to merge it as a split), broadcast input to every pane of a tab, drop files onto a terminal to type their paths, find, copy-on-select, right-click paste, 25 colour themes, dark and light (optionally a separate one for light mode), custom bash/zsh prompt builder, history autosuggestions, startup command, one-key reconnect, automatic SSH reconnect, follows the shell's working directory, keyword highlighting, session logs, local shell, workspaces that group local project folders (open one or all in their folder, with an optional startup command) |
 | **Authentication** | Password, keyboard-interactive, keys from the built-in keychain, ssh-agent / Pageant, default `~/.ssh/id_*` keys |
 | **Jump hosts** | ProxyJump chains (`laptop → bastion → … → target`) |
 | **Security** | Trust-on-first-use host keys with mismatch blocking, honours `~/.ssh/known_hosts`, vault encrypted with XChaCha20-Poly1305 and its key kept in the OS keychain |
-| **Keychain** | Generate Ed25519 / ECDSA / RSA-4096 keys (optional passphrase), import, copy public key, install on a server (`ssh-copy-id`) |
-| **File manager** | Dual pane between **any** pair of Local / SFTP / FTP / FTPS / S3 / Azure Blob / GCS; drag between panes, drop files from your OS, recursive folders, parallel transfer queue with speed and cancel, rename, delete, chmod, built-in text editor |
+| **Keychain** | Grid/list view, generate Ed25519 / ECDSA / RSA-4096 keys (optional passphrase), import, copy public key, install on a server (`ssh-copy-id`) |
+| **File manager** | Dual pane between **any** pair of Local / SFTP / FTP / FTPS / S3 / Azure Blob / GCS; drag between panes, drop files from your OS, recursive folders, parallel transfer queue with speed and cancel, rename, delete, chmod, built-in code editor with syntax highlighting, image preview, open any file in its default app (remote files are offered for upload when saved there) |
 | **Object storage** | Any S3-compatible service (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Wasabi, Backblaze B2, Tencent COS, Scaleway, Hetzner, Linode, Oracle, …) with path-style or virtual-hosted URLs, plus native **Azure Blob Storage** and **Google Cloud Storage** (service-account key). Share links: pre-signed for S3, read-only SAS for Azure, signed URL for GCS (needs a service-account key; not yet tested against real GCS) |
 | **Port forwarding** | Local (`-L`), remote (`-R`) and dynamic SOCKS5 (`-D`) tunnels through your saved hosts, with optional auto-start; paste an `ssh -L …` command to create rules, copy any rule back as an `ssh` command |
-| **Snippets** | Save commands, paste them into a terminal, or run them on many hosts at once with per-host output |
+| **Snippets** | Save commands (with `{{variables}}` asked for when they run), paste them into a terminal, or run them on many hosts at once with per-host output |
 | **Updates** | Signed in-app updates: an **Update K-Shell** button appears when a new version is out, and one click installs it and restarts |
 | **Everything else** | Command palette (<kbd>⌘K</kbd>) with quick connect `user@host:port`, encrypted vault backup and restore |
 
@@ -102,6 +102,7 @@ Every shortcut can be changed, removed or reset in **Settings → Keyboard short
 | <kbd>⌘D</kbd> | <kbd>Ctrl+Shift+D</kbd> | Split right |
 | <kbd>⇧⌘D</kbd> | <kbd>Ctrl+Shift+E</kbd> | Split down |
 | <kbd>⌘]</kbd> / <kbd>⌘[</kbd> | <kbd>Ctrl+Shift+]</kbd> / <kbd>[</kbd> | Focus next / previous pane |
+| <kbd>⌥⌘I</kbd> | <kbd>Ctrl+Shift+I</kbd> | Broadcast input to all panes of the tab |
 | <kbd>⌘F</kbd> | <kbd>Ctrl+Shift+F</kbd> | Find in terminal |
 | <kbd>→</kbd> / <kbd>⌥→</kbd> | <kbd>→</kbd> / <kbd>Ctrl+→</kbd> | Accept autosuggestion / its next word |
 | <kbd>⌘=</kbd> / <kbd>⌘-</kbd> / <kbd>⌘0</kbd> | <kbd>Ctrl+=</kbd> / <kbd>Ctrl+-</kbd> / <kbd>Ctrl+0</kbd> | Zoom in / out / reset |

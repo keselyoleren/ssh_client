@@ -155,6 +155,66 @@ pub struct Settings {
     pub save_history: bool,
     /// Left sidebar hidden (toggled with ⌘B / Ctrl+Shift+B).
     pub sidebar_hidden: bool,
+    /// Reconnect an SSH terminal by itself when its connection drops.
+    pub auto_reconnect: bool,
+    /// Reopen the tabs that were open when the app was closed.
+    pub restore_tabs: bool,
+    /// Terminal text weight ("normal", "500", "600", "bold") and the weight of bold text.
+    pub font_weight: String,
+    pub font_weight_bold: String,
+    /// Extra pixels between characters.
+    pub letter_spacing: f32,
+    /// Draw bold text in the bright ANSI colours.
+    pub bold_bright: bool,
+    /// xterm minimum contrast ratio (1 = off).
+    pub min_contrast: f32,
+    /// Cursor shape while the terminal is not focused: outline | block | bar | underline | none.
+    pub cursor_inactive: String,
+    /// What the terminal bell does: none | visual | sound | both.
+    pub bell: String,
+    /// macOS: the Option key sends Meta (Esc+key) instead of typing special characters.
+    pub option_meta: bool,
+    /// Ask before pasting text that contains a line break.
+    pub paste_warn: bool,
+    /// Local terminals: shell to run (empty = the system default) and folder to start in.
+    pub local_shell: String,
+    pub local_cwd: String,
+    /// Follow the shell's working directory (OSC 7; a small hook is added to bash/zsh).
+    pub track_cwd: bool,
+    /// Write a plain-text log of every terminal session.
+    pub session_log: bool,
+    /// Folder for session logs ("" = Documents/K-Shell Logs).
+    pub log_dir: String,
+    /// Colour words matching `highlight_rules` in terminal output.
+    pub highlight: bool,
+    pub highlight_rules: Vec<HighlightRule>,
+}
+
+/// Terminal output highlighting: words (comma separated) or a regular expression, drawn in
+/// a colour of the terminal theme ("red", "yellow" …) or a hex colour.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct HighlightRule {
+    pub pattern: String,
+    pub color: String,
+    pub regex: bool,
+    pub case_sensitive: bool,
+    pub enabled: bool,
+}
+
+fn default_highlights() -> Vec<HighlightRule> {
+    let rule = |pattern: &str, color: &str| HighlightRule {
+        pattern: pattern.into(),
+        color: color.into(),
+        regex: false,
+        case_sensitive: false,
+        enabled: true,
+    };
+    vec![
+        rule("error, fatal, failed, failure, exception, panic, denied, refused", "red"),
+        rule("warn, warning, deprecated", "yellow"),
+        rule("success, succeeded, passed", "green"),
+    ]
 }
 
 impl Default for Settings {
@@ -182,6 +242,24 @@ impl Default for Settings {
             autosuggest: true,
             save_history: true,
             sidebar_hidden: false,
+            auto_reconnect: true,
+            restore_tabs: true,
+            font_weight: "normal".into(),
+            font_weight_bold: "bold".into(),
+            letter_spacing: 0.0,
+            bold_bright: true,
+            min_contrast: 1.0,
+            cursor_inactive: "outline".into(),
+            bell: "visual".into(),
+            option_meta: true,
+            paste_warn: true,
+            local_shell: String::new(),
+            local_cwd: String::new(),
+            track_cwd: true,
+            session_log: false,
+            log_dir: String::new(),
+            highlight: true,
+            highlight_rules: default_highlights(),
         }
     }
 }
@@ -200,6 +278,8 @@ pub struct VaultData {
     pub history: Vec<HistoryEntry>,
     /// Groups of local project folders.
     pub workspaces: Vec<Workspace>,
+    /// Tabs open when the app was last closed (layout written by the UI; hosts by id, no secrets).
+    pub session: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

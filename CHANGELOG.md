@@ -6,6 +6,71 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Broadcast input: type in one pane of a split tab and the other panes receive the same keystrokes, pastes,
+  accepted autosuggestions and snippets. Turn it on with <kbd>⌥⌘I</kbd> / <kbd>Ctrl+Shift+I</kbd>, the command
+  palette or a pane's right-click menu. Broadcasting panes get an amber border and the tab shows a broadcast icon;
+  click the icon in a pane's header to leave that pane out. The terminal's automatic replies (cursor position,
+  colour queries, focus and mouse reports) stay in their own pane. Broadcast turns off when the tab is down to one
+  pane.
+- Drop files or folders from the file manager onto a terminal to type their paths, quoted for the shell and
+  separated by spaces. With several panes, the one under the pointer gets them.
+- SSH terminals reconnect by themselves when the connection drops (no exit status from the server): retries
+  after 1, 2, 4, 8, 15 and then every 30 seconds, about 3 minutes in all, and right away when the network comes back.
+  Enter reconnects now, Ctrl+C stops. Turn it off in Settings → Terminal → Reconnect SSH automatically.
+- Tabs reopen on launch: terminal tabs with their split panes, and file-manager tabs, come back as they were and
+  connect again. Hosts are saved by id, so no password or key is copied, and a host deleted since is skipped. Turn
+  it off in Settings → Terminal → Reopen tabs on launch.
+- Rename a tab by double-clicking it, from its right-click menu or with "Rename tab" in the command palette. An
+  empty name goes back to the automatic title.
+- Keychain has a grid / list view switch, like Hosts.
+- Terminals follow the shell's working directory (OSC 7; a small hook is added to new bash and zsh sessions, and
+  shells that already report it work as they are). Splits open in the same folder, a reconnect or a reopened tab
+  returns to the last folder, and "Open SFTP here" / "Open in file manager" open it. Settings → Terminal → Follow the
+  working directory.
+- A remote file opened in another app is watched: when you save it there, the file manager offers to upload it back
+  (Upload / stop watching). Copies older than a day are removed from the temp folder at launch.
+- Session logs: Settings → Terminal → Log terminal sessions writes each new session to a plain-text file (colour and
+  cursor codes removed, redrawn progress lines kept at their final state) in Documents/K-Shell Logs or a folder of
+  your choice.
+- Snippet variables: `{{name}}` or `{{name:default}}` in a snippet is asked for when it runs (from the palette, the
+  terminal menu, the Snippets page or "Run on hosts"), with the last values remembered.
+- Keyword highlighting: words in terminal output are coloured by rules (words or a regular expression, a theme
+  colour, match case). The defaults colour errors red, warnings yellow and successes green; the output itself is not
+  changed and full-screen programs are left alone.
+
+- More terminal settings (Settings → Terminal): font weight and bold-text weight, letter spacing, bright colours for
+  bold text, minimum contrast, cursor shape in unfocused panes, a bell that flashes the pane and/or beeps, Option as
+  Meta key on macOS (turn it off to type @, € or [ with Option on non-US keyboards), a warning that shows multi-line
+  text before it is pasted, and the shell and start folder of local terminals.
+- 16 more terminal themes, 25 in all: Tokyo Night, Catppuccin Mocha and Latte, Rosé Pine and Rosé Pine Dawn,
+  Kanagawa, Everforest, GitHub Dark, Ayu Dark and Light, Night Owl, Synthwave, Aubergine, One Light, Solarized Light
+  and Gruvbox Light. Settings → Appearance lists them in Dark and Light groups. The file editor uses the same colours.
+- Workspaces page redesigned: projects show as cards (or a compact list, switchable like Hosts), each workspace has a
+  coloured initial and a count of open terminals, paths under your home folder are shown as `~/…`, startup commands
+  sit under the path, an "Add project" tile ends every workspace, and projects open with Enter from the keyboard.
+- The file manager opens a file by its type: images in a built-in preview, documents, media, archives and other
+  binaries in the app your OS uses for them (remote files are downloaded to a temp folder first; changes made there
+  are not uploaded back), everything else in the text editor. The right-click menu adds "Open in default app" and,
+  for non-text files, "Edit as text". Files that would run or install when opened (`.exe`, `.msi`, `.pkg`, `.dmg`,
+  `.jar`, `.sh` …) are never handed to the default app; scripts still open in the text editor.
+- The file manager's text editor highlights syntax for some 140 languages and config formats (Python, Go, Rust,
+  JS/TS, Vue, PHP, Java, C/C++, SQL, YAML, TOML, JSON, Dockerfile, Nginx, shell, `.env`, `.ini` …), picked from the file
+  name, in the colours of the current terminal theme. It has line numbers, find & replace (⌘F / Ctrl+F), folding,
+  bracket matching and multiple cursors, keeps the file's indentation (tabs or spaces) and line endings (LF/CRLF),
+  and shows them with the cursor position in a status bar.
+
+### Changed
+- Lighter start-up: the terminal, file manager, editor and every Vault page except Hosts load when first used, so the
+  start-up bundle is 150 KB instead of 741 KB. Terminal panes in background tabs give their WebGL renderer back after
+  30 seconds and take it again when shown, which frees GPU memory with many tabs open.
+
+### Fixed
+- Agent forwarding did nothing: the server's agent channel was accepted but never connected to the local
+  ssh-agent, so `ssh-add -l`, `git` or `ssh` on the server hung or found no keys. It is now piped to
+  `$SSH_AUTH_SOCK` (the OpenSSH agent pipe or Pageant on Windows), and refused right away when no local agent is
+  running.
+
 ## [0.3.0] - 2026-11-04
 
 ### Added

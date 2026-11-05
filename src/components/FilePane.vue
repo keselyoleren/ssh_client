@@ -5,6 +5,7 @@ import { store, openMenu, prompt, confirm, toast, err } from '../lib/store'
 import { join, parent, crumbs } from '../lib/paths'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import Icon from './Icon.vue'
+import { fileKind, runsWhenOpened } from '../lib/filetypes'
 import { isObjectStorage } from '../lib/os'
 
 const props = defineProps({ side: Object, other: Object, name: String })
@@ -147,7 +148,17 @@ function rowMenu(ev, e) {
   const items = selected.value
   const remote = !!s.host
   openMenu(ev, [
-    { label: e.is_dir ? 'Open' : 'Edit', icon: e.is_dir ? 'folder' : 'edit', action: () => open(e) },
+    { label: 'Open', icon: e.is_dir ? 'folder' : 'file', action: () => open(e) },
+    ...(e.is_dir
+      ? []
+      : [
+          ...(fileKind(e.name) !== 'text'
+            ? [{ label: 'Edit as text', icon: 'edit', action: () => emit('edit', s, e, 'text') }]
+            : []),
+          ...(runsWhenOpened(e.name)
+            ? []
+            : [{ label: 'Open in default app', icon: 'popout', action: () => emit('edit', s, e, 'external') }]),
+        ]),
     {
       label: `${remote ? 'Download' : 'Upload'} to ${otherLabel.value}`,
       icon: remote ? 'download' : 'upload',

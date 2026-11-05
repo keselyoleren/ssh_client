@@ -7,7 +7,18 @@
 // empty combo means "no shortcut".
 
 import { computed } from 'vue'
-import { store, openLocal, openSftp, closeTab, closePane, activeTab, splitFocused, toggleSidebar } from './store'
+import {
+  store,
+  openLocal,
+  openSftp,
+  closeTab,
+  closePane,
+  activeTab,
+  splitFocused,
+  toggleSidebar,
+  toggleBroadcast,
+  renameTab,
+} from './store'
 import { zoomBy, zoomReset } from './appearance'
 
 const isMac = () => store.platform.os === 'macos'
@@ -72,6 +83,7 @@ export const ACTIONS = [
     run: openLocal,
   },
   { id: 'new_sftp', group: 'Tabs', label: 'Open file manager', run: () => openSftp() },
+  { id: 'rename_tab', group: 'Tabs', label: 'Rename tab', run: () => renameTab(activeTab()) },
   {
     id: 'close_tab',
     group: 'Tabs',
@@ -145,6 +157,14 @@ export const ACTIONS = [
       const t = activeTab()
       if (t?.kind === 'term') closePane(t, t.focus)
     },
+  },
+  {
+    id: 'broadcast',
+    group: 'Panes',
+    label: 'Broadcast input to all panes',
+    mac: ['Alt+Meta+I'],
+    pc: ['Ctrl+Shift+I'],
+    run: () => toggleBroadcast(),
   },
 
   { id: 'copy', group: 'Terminal', label: 'Copy selection', scope: 'terminal', mac: ['Meta+C'], pc: ['Ctrl+Shift+C'] },

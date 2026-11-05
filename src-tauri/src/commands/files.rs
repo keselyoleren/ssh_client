@@ -72,6 +72,95 @@ pub async fn fs_read_text(st: State<'_>, id: String, path: String) -> Res<String
     st.fs(&id)?.read_text(&path).await
 }
 
+/// Raw bytes of a file (up to 32 MB), for the image preview.
+#[tauri::command]
+pub async fn fs_read_bytes(st: State<'_>, id: String, path: String) -> Res<tauri::ipc::Response> {
+    let bytes = st.fs(&id)?.read_bytes(&path, 32 * 1024 * 1024).await?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Extensions whose default app runs or installs the file. Keep in step with RUNS in
+/// src/lib/filetypes.js.
+const BLOCKED: &[&str] = &[
+    "exe", "msi", "bat", "cmd", "com", "scr", "ps1", "vbs", "js", "jse", "wsf", "hta", "lnk", "reg", "app",
+    "pkg", "dmg", "command", "tool", "workflow", "jar", "deb", "rpm", "apk", "appimage", "sh", "run", "bin",
+    "py", "pyw", "vbe", "msix", "appx", "msp", "cpl", "pif", "jnlp", "scpt", "terminal", "desktop",
+];
+
+/// Open a file with the app the OS associates with it. Remote files are downloaded to a
+/// temp folder first and that copy is watched: `on_change` gets `{type: "changed"}`
+/// each time it is saved, so the UI can offer to upload it (`fs_upload_back`). Returns the
+/// watch id for remote files.
+#[tauri::command]
+pub async fn fs_open_external(
+    app: tauri::AppHandle,
+    st: State<'_>,
+    id: String,
+    path: String,
+    on_change: Channel<Value>,
+) -> Res<Option<String>> {
+    use tauri_plugin_opener::OpenerExt;
+    let ext = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    if BLOCKED.contains(&ext.as_str()) {
+        return Err(format!("K-Shell doesn't open .{ext} files: opening one would run or install it"));
+    }
+    let fs = st.fs(&id)?;
+    let local = fs.local_copy(&path).await?;
+    app.opener().open_path(&local, None::<&str>).map_err(|e| e.to_string())?;
+    if fs.is_local() {
+        return Ok(None);
+    }
+    let out = on_change;
+
+    let wid = crate::vault::new_id();
+    let stop = Arc::new(AtomicBool::new(false));
+    st.watches.lock().insert(
+        wid.clone(),
+        crate::state::Watch { fsid: id.clone(), local: local.clone(), remote: path, stop: stop.clone() },
+    );
+    let w = wid.clone();
+    tauri::async_runtime::spawn(async move {
+        use tauri::Manager;
+        let stamp = |p: &str| std::fs::metadata(p).ok().map(|m| (m.modified().ok(), m.len()));
+        let mut last = stamp(&local);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            let st = app.state::<crate::state::AppState>();
+            // stop with the file-manager session or when the UI lets go of the file
+            if stop.load(Ordering::Relaxed) || st.fs(&id).is_err() {
+                st.watches.lock().remove(&w);
+                break;
+            }
+            // None while an editor replaces the file (atomic save): wait for the new one
+            let Some(now) = stamp(&local) else { continue };
+            if last.as_ref() != Some(&now) {
+                last = Some(now);
+                let _ = out.send(json!({ "type": "changed" }));
+            }
+        }
+    });
+    Ok(Some(wid))
+}
+
+/// Upload a watched copy (see `fs_open_external`) back to where it came from.
+#[tauri::command]
+pub async fn fs_upload_back(st: State<'_>, wid: String) -> Res<()> {
+    let (fsid, local, remote) = {
+        let w = st.watches.lock();
+        let w = w.get(&wid).ok_or("this file is no longer watched")?;
+        (w.fsid.clone(), w.local.clone(), w.remote.clone())
+    };
+    st.fs(&fsid)?.upload(&local, &remote, &Progress::default()).await
+}
+
+/// Stop watching a copy opened with `fs_open_external`.
+#[tauri::command]
+pub fn fs_unwatch(st: State, wid: String) {
+    if let Some(w) = st.watches.lock().remove(&wid) {
+        w.stop.store(true, Ordering::Relaxed);
+    }
+}
+
 #[tauri::command]
 pub async fn fs_write_text(st: State<'_>, id: String, path: String, content: String) -> Res<()> {
     st.fs(&id)?.write_text(&path, &content).await

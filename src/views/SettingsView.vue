@@ -5,7 +5,8 @@ import { checkForUpdate, installUpdate } from '../lib/updater'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { store, loadVault, toast, err, prompt, confirm } from '../lib/store'
 import { api } from '../lib/api'
-import { themes } from '../lib/themes'
+import { themes, isDarkTheme } from '../lib/themes'
+import { RULE_COLORS, regexError } from '../lib/highlight'
 import { ACCENTS, ZOOMS, appMode, termTheme, termThemeId } from '../lib/appearance'
 import { hint } from '../lib/keymap'
 import Icon from '../components/Icon.vue'
@@ -47,6 +48,13 @@ const zoomKeys = computed(() => [hint('zoom_in'), hint('zoom_out'), hint('zoom_r
 
 // which slot a click on a terminal theme card assigns when "match app mode" is on
 const slot = ref(appMode() === 'light' ? 'light' : 'dark')
+/** Terminal themes split into dark and light; the light ones first while picking the light-mode theme. */
+const themeGroups = computed(() => {
+  const all = Object.entries(themes)
+  const dark = { label: 'Dark', items: all.filter(([, t]) => isDarkTheme(t)) }
+  const light = { label: 'Light', items: all.filter(([, t]) => !isDarkTheme(t)) }
+  return s.value.term_theme_sync && slot.value === 'light' ? [light, dark] : [dark, light]
+})
 function pickTermTheme(id) {
   if (s.value.term_theme_sync && slot.value === 'light') s.value.term_theme_light = id
   else s.value.term_theme = id
@@ -92,6 +100,70 @@ const segColor = (id) => termTheme()[ANSI[SEGMENTS[id].color]]
 
 // ---------- autosuggestions ----------
 
+const WEIGHTS = [
+  { id: 'normal', label: 'Regular' },
+  { id: '500', label: 'Medium' },
+  { id: '600', label: 'Semibold' },
+  { id: 'bold', label: 'Bold' },
+]
+const CONTRASTS = [
+  { v: 1, label: 'Off' },
+  { v: 3, label: 'Low (3:1)' },
+  { v: 4.5, label: 'Medium (4.5:1)' },
+  { v: 7, label: 'High (7:1)' },
+]
+const INACTIVE = [
+  { v: 'outline', label: 'Outline' },
+  { v: 'block', label: 'Block' },
+  { v: 'bar', label: 'Bar' },
+  { v: 'underline', label: 'Underline' },
+  { v: 'none', label: 'Hidden' },
+]
+const BELLS = [
+  { v: 'none', label: 'Off' },
+  { v: 'visual', label: 'Flash' },
+  { v: 'sound', label: 'Sound' },
+  { v: 'both', label: 'Both' },
+]
+// ---------- keyword highlighting ----------
+const DEFAULT_RULES = [
+  { pattern: 'error, fatal, failed, failure, exception, panic, denied, refused', color: 'red' },
+  { pattern: 'warn, warning, deprecated', color: 'yellow' },
+  { pattern: 'success, succeeded, passed', color: 'green' },
+].map((r) => ({ ...r, regex: false, case_sensitive: false, enabled: true }))
+function addRule() {
+  s.value.highlight_rules ||= []
+  s.value.highlight_rules.push({ pattern: '', color: 'cyan', regex: false, case_sensitive: false, enabled: true })
+}
+const resetRules = () => (s.value.highlight_rules = DEFAULT_RULES.map((r) => ({ ...r })))
+/** A short example of what the rule colours. */
+const samplePattern = (r) =>
+  r.regex ? (regexError(r.pattern) ? 'invalid' : 'match') : (r.pattern.split(',')[0] || '').trim() || 'word'
+
+// ---------- session logs ----------
+const logDir = ref('')
+const refreshLogDir = () =>
+  api
+    .log_dir()
+    .then((d) => (logDir.value = d))
+    .catch(() => {})
+onMounted(refreshLogDir)
+async function pickLogDir() {
+  const dir = await openDialog({ directory: true, multiple: false, defaultPath: logDir.value || undefined })
+  if (!dir) return
+  s.value.log_dir = dir
+  setTimeout(refreshLogDir, 400) // after the settings are saved
+}
+function resetLogDir() {
+  s.value.log_dir = ''
+  setTimeout(refreshLogDir, 400)
+}
+const openLogDir = () => api.log_dir_open().catch(err)
+
+async function pickLocalCwd() {
+  const dir = await openDialog({ directory: true, multiple: false, defaultPath: s.value.local_cwd || undefined })
+  if (dir) s.value.local_cwd = dir
+}
 const historyCount = computed(() => store.vault.history?.length || 0)
 async function clearHistory() {
   if (
@@ -282,38 +354,46 @@ async function importConfig() {
                 <b>{{ themes[sl === 'dark' ? darkThemeId : lightThemeId]?.name }}</b>
               </button>
             </div>
-            <div class="themes">
-              <button
-                v-for="(th, id) in themes"
-                :key="id"
-                class="tcard"
-                :class="{
-                  on: s.term_theme_sync ? (slot === 'light' ? lightThemeId : darkThemeId) === id : termThemeId() === id,
-                }"
-                @click="pickTermTheme(id)"
-              >
-                <div class="tprev mono" :style="{ background: th.background, color: th.foreground }">
-                  <div>
-                    <span :style="{ color: th.green }">➜</span> <span :style="{ color: th.cyan }">~/app</span> ls
+            <template v-for="g in themeGroups" :key="g.label">
+              <div class="tgroup">
+                {{ g.label }} <span class="dim">· {{ g.items.length }}</span>
+              </div>
+              <div class="themes">
+                <button
+                  v-for="[id, th] in g.items"
+                  :key="id"
+                  class="tcard"
+                  :class="{
+                    on: s.term_theme_sync
+                      ? (slot === 'light' ? lightThemeId : darkThemeId) === id
+                      : termThemeId() === id,
+                  }"
+                  @click="pickTermTheme(id)"
+                >
+                  <div class="tprev mono" :style="{ background: th.background, color: th.foreground }">
+                    <div>
+                      <span :style="{ color: th.green }">➜</span> <span :style="{ color: th.cyan }">~/app</span> ls
+                    </div>
+                    <div>
+                      <span :style="{ color: th.blue }">src</span>&nbsp;
+                      <span :style="{ color: th.green }">run.sh</span>&nbsp;
+                      <span :style="{ color: th.red }">err.log</span>
+                    </div>
+                    <div>
+                      <span :style="{ color: th.magenta }">$</span>
+                      <i class="cur" :style="{ background: th.cursor }"></i>
+                    </div>
                   </div>
-                  <div>
-                    <span :style="{ color: th.blue }">src</span>&nbsp;
-                    <span :style="{ color: th.green }">run.sh</span>&nbsp;
-                    <span :style="{ color: th.red }">err.log</span>
+                  <div class="tname">
+                    <span>{{ th.name }}</span>
+                    <template v-if="s.term_theme_sync">
+                      <span v-if="darkThemeId === id" class="mtag">Dark</span>
+                      <span v-if="lightThemeId === id" class="mtag">Light</span>
+                    </template>
                   </div>
-                  <div>
-                    <span :style="{ color: th.magenta }">$</span> <i class="cur" :style="{ background: th.cursor }"></i>
-                  </div>
-                </div>
-                <div class="tname">
-                  <span>{{ th.name }}</span>
-                  <template v-if="s.term_theme_sync">
-                    <span v-if="darkThemeId === id" class="mtag">Dark</span>
-                    <span v-if="lightThemeId === id" class="mtag">Light</span>
-                  </template>
-                </div>
-              </button>
-            </div>
+                </button>
+              </div>
+            </template>
           </div>
         </template>
 
@@ -327,6 +407,8 @@ async function importConfig() {
               fontFamily: s.font_family,
               fontSize: s.font_size + 'px',
               lineHeight: s.line_height,
+              fontWeight: s.font_weight || 'normal',
+              letterSpacing: (+s.letter_spacing || 0) + 'px',
             }"
           >
             <span :style="{ color: termTheme().green }">user@server</span>:<span :style="{ color: termTheme().blue }"
@@ -372,6 +454,67 @@ async function importConfig() {
                   +
                 </button>
               </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Letter spacing</b>
+                <div class="dim">Extra space between characters, in pixels</div>
+              </div>
+              <div class="stepper">
+                <button @click="bump('letter_spacing', -1, 0, 4, 0.5)">−</button
+                ><input type="number" step="0.5" min="0" max="4" v-model.number="s.letter_spacing" /><button
+                  @click="bump('letter_spacing', 1, 0, 4, 0.5)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Font weight</b>
+                <div class="dim">Heavier text reads better on some fonts and screens</div>
+              </div>
+              <div class="seg">
+                <button
+                  v-for="w in WEIGHTS"
+                  :key="w.id"
+                  :class="{ on: (s.font_weight || 'normal') === w.id }"
+                  :style="{ fontWeight: w.id }"
+                  @click="s.font_weight = w.id"
+                >
+                  {{ w.label }}
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <b>Bold text weight</b>
+              <div class="seg">
+                <button
+                  v-for="w in WEIGHTS.slice(1)"
+                  :key="w.id"
+                  :class="{ on: (s.font_weight_bold || 'bold') === w.id }"
+                  :style="{ fontWeight: w.id }"
+                  @click="s.font_weight_bold = w.id"
+                >
+                  {{ w.label }}
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Bright colors for bold text</b>
+                <div class="dim">Bold text in the standard colors is drawn in their bright variant</div>
+              </div>
+              <button class="switch" :class="{ on: s.bold_bright }" @click="s.bold_bright = !s.bold_bright"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Minimum contrast</b>
+                <div class="dim">Lightens or darkens text that is hard to read on its background</div>
+              </div>
+              <select class="select" style="width: 170px" v-model.number="s.min_contrast">
+                <option v-for="c in CONTRASTS" :key="c.v" :value="c.v">{{ c.label }}</option>
+              </select>
             </div>
           </div>
 
@@ -500,6 +643,45 @@ async function importConfig() {
                 @click="s.cursor_blink = !s.cursor_blink"
               ></button>
             </div>
+            <div class="set">
+              <div>
+                <b>Cursor in unfocused panes</b>
+                <div class="dim">How the cursor looks in panes and windows you are not typing in</div>
+              </div>
+              <select class="select" style="width: 170px" v-model="s.cursor_inactive">
+                <option v-for="c in INACTIVE" :key="c.v" :value="c.v">{{ c.label }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-title">Keyboard &amp; bell</div>
+          <div class="card pad">
+            <div v-if="store.platform.os === 'macos'" class="set">
+              <div>
+                <b>Use Option as Meta key</b>
+                <div class="dim">
+                  On: Option+B / Option+F jump words in the shell. Off: Option types special characters (@, €, [ …) as
+                  on non-US keyboards
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.option_meta }" @click="s.option_meta = !s.option_meta"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Bell</b>
+                <div class="dim">When a program rings the terminal bell (for example Tab with no completion)</div>
+              </div>
+              <div class="seg">
+                <button
+                  v-for="b in BELLS"
+                  :key="b.v"
+                  :class="{ on: (s.bell || 'visual') === b.v }"
+                  @click="s.bell = b.v"
+                >
+                  {{ b.label }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="section-title">Behavior</div>
@@ -531,12 +713,174 @@ async function importConfig() {
               ></button>
             </div>
             <div class="set">
+              <div>
+                <b>Follow the working directory</b>
+                <div class="dim">
+                  Splits, reconnects and reopened tabs return to the shell's last folder, and "Open SFTP here" opens it.
+                  Adds a small hook to new bash and zsh sessions
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.track_cwd }" @click="s.track_cwd = !s.track_cwd"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Warn before pasting several lines</b>
+                <div class="dim">Shows what will be pasted first, since each line can run as a command</div>
+              </div>
+              <button class="switch" :class="{ on: s.paste_warn }" @click="s.paste_warn = !s.paste_warn"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Reconnect SSH automatically</b>
+                <div class="dim">When a connection drops, retry for about 3 minutes</div>
+              </div>
+              <button
+                class="switch"
+                :class="{ on: s.auto_reconnect }"
+                @click="s.auto_reconnect = !s.auto_reconnect"
+              ></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Reopen tabs on launch</b>
+                <div class="dim">Tabs and split panes from the last session open again, and their sessions connect</div>
+              </div>
+              <button class="switch" :class="{ on: s.restore_tabs }" @click="s.restore_tabs = !s.restore_tabs"></button>
+            </div>
+            <div class="set">
               <b>Confirm before closing split tabs</b
               ><button
                 class="switch"
                 :class="{ on: s.confirm_close }"
                 @click="s.confirm_close = !s.confirm_close"
               ></button>
+            </div>
+          </div>
+
+          <div class="section-title">Highlight keywords</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Color matching words in terminal output</b>
+                <div class="dim">The output itself is not changed; full-screen programs like vim are left alone</div>
+              </div>
+              <button class="switch" :class="{ on: s.highlight }" @click="s.highlight = !s.highlight"></button>
+            </div>
+            <template v-if="s.highlight">
+              <div v-for="(r, i) in s.highlight_rules" :key="i" class="hlrule" :class="{ off: !r.enabled }">
+                <button
+                  class="switch sm"
+                  :class="{ on: r.enabled }"
+                  :title="r.enabled ? 'Turn this rule off' : 'Turn this rule on'"
+                  @click="r.enabled = !r.enabled"
+                ></button>
+                <select
+                  class="select hlcolor"
+                  v-model="r.color"
+                  :style="{ color: termTheme()[r.color] || r.color }"
+                  title="Color"
+                >
+                  <option v-for="c in RULE_COLORS" :key="c" :value="c" :style="{ color: termTheme()[c] }">
+                    {{ c }}
+                  </option>
+                </select>
+                <div class="hlpat">
+                  <input
+                    class="input mono"
+                    v-model="r.pattern"
+                    :placeholder="r.regex ? 'e.g. \\b5\\d\\d\\b' : 'words, separated by commas'"
+                    spellcheck="false"
+                    :class="{ bad: r.regex && regexError(r.pattern) }"
+                    :title="r.regex ? regexError(r.pattern) : ''"
+                  />
+                  <span class="hlprev mono">
+                    <span :style="{ color: termTheme()[r.color] || r.color }">{{ samplePattern(r) }}</span>
+                  </span>
+                </div>
+                <button
+                  class="tog mono"
+                  :class="{ on: r.case_sensitive }"
+                  title="Match case"
+                  @click="r.case_sensitive = !r.case_sensitive"
+                >
+                  Aa
+                </button>
+                <button
+                  class="tog mono"
+                  :class="{ on: r.regex }"
+                  title="Regular expression"
+                  @click="r.regex = !r.regex"
+                >
+                  .*
+                </button>
+                <button class="iconbtn" title="Remove rule" @click="s.highlight_rules.splice(i, 1)">
+                  <Icon name="trash" :size="13" />
+                </button>
+              </div>
+              <div class="row" style="gap: 8px; padding-top: 8px">
+                <button class="btn sm" @click="addRule"><Icon name="plus" :size="12" /> Add rule</button>
+                <button class="btn ghost sm" @click="resetRules">Reset to defaults</button>
+              </div>
+            </template>
+          </div>
+
+          <div class="section-title">Session logs</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Log terminal sessions</b>
+                <div class="dim">
+                  Saves what every new terminal prints to a plain-text file (colours and cursor codes removed), one file
+                  per session
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.session_log }" @click="s.session_log = !s.session_log"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Log folder</b>
+                <div class="dim mono" style="word-break: break-all">{{ logDir }}</div>
+              </div>
+              <div class="row" style="gap: 6px">
+                <button class="btn" title="Choose folder" @click="pickLogDir"><Icon name="folder" :size="14" /></button>
+                <button v-if="s.log_dir" class="btn ghost sm" @click="resetLogDir">Default</button>
+                <button class="btn" @click="openLogDir">Open</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-title">Local terminal</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Shell</b>
+                <div class="dim">Program run by new local terminals. Leave empty for the system default</div>
+              </div>
+              <input
+                class="input mono"
+                style="width: 240px"
+                v-model.trim="s.local_shell"
+                :placeholder="store.platform.shell || 'default'"
+                spellcheck="false"
+              />
+            </div>
+            <div class="set">
+              <div>
+                <b>Start in folder</b>
+                <div class="dim">Where new local terminals open. Workspace projects keep their own folder</div>
+              </div>
+              <div class="row" style="gap: 6px">
+                <input
+                  class="input mono"
+                  style="width: 190px"
+                  v-model.trim="s.local_cwd"
+                  placeholder="Home folder"
+                  spellcheck="false"
+                />
+                <button class="btn" title="Choose folder" @click="pickLocalCwd">
+                  <Icon name="folder" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </template>
@@ -637,7 +981,8 @@ async function importConfig() {
   border: 0;
   border-radius: 7px;
   background: none;
-  color: var(--text-2);
+  color: var(--menu-text);
+  font-weight: 500;
   cursor: pointer;
   text-align: left;
 }
@@ -648,7 +993,7 @@ async function importConfig() {
 .snav button.on {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 650;
 }
 .sbody {
   flex: 1;
@@ -854,6 +1199,14 @@ async function importConfig() {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+.tgroup {
+  margin: 14px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
 .themes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1036,5 +1389,64 @@ async function importConfig() {
 }
 .stepper input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+}
+.hlrule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.hlrule.off .hlpat,
+.hlrule.off .hlcolor {
+  opacity: 0.5;
+}
+.hlcolor {
+  width: 96px;
+  font-weight: 600;
+}
+.hlpat {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.hlpat .input {
+  width: 100%;
+  padding-right: 90px;
+}
+.hlpat .input.bad {
+  border-color: var(--danger);
+}
+.hlprev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.tog {
+  height: 28px;
+  min-width: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.tog.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.switch.sm {
+  transform: scale(0.85);
 }
 </style>

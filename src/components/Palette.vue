@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import { resolveSnippet } from '../lib/snippetvars'
 import { store, connectHost, openLocal, openSftp, sendToFocused, openProject, openWorkspace } from '../lib/store'
 import { uid } from '../lib/api'
 import Icon from './Icon.vue'
@@ -40,7 +41,7 @@ const items = computed(() => {
   }
   for (const sn of store.vault.snippets) {
     if (s && (sn.name + ' ' + sn.command).toLowerCase().includes(s))
-      out.push({ icon: 'code', label: sn.name, sub: sn.command, run: () => sendToFocused(sn.command + '\r') })
+      out.push({ icon: 'code', label: sn.name, sub: sn.command, run: () => runSnippet(sn) })
   }
   // quick connect: user@host[:port]
   const m = q.value.trim().match(/^(?:ssh\s+)?(?:([^@\s]+)@)?([\w.-]+)(?::(\d+))?$/)
@@ -88,6 +89,11 @@ function choose(it) {
   if (!it) return
   store.palette = false
   it.run()
+}
+/** Snippets with {{variables}} ask for their values first. */
+async function runSnippet(sn) {
+  const cmd = await resolveSnippet(sn)
+  if (cmd != null) sendToFocused(cmd + '\r')
 }
 </script>
 

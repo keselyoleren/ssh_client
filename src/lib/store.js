@@ -56,9 +56,15 @@ export function prompt(title, { value = '', placeholder = '', label = '', okText
     store.dialog = { type: 'prompt', title, value, placeholder, label, okText, password, resolve }
   })
 }
-export function confirm(title, message = '', { okText = 'Delete', danger = true } = {}) {
+/** A dialog with several text fields: resolves { name: value } or null when cancelled. */
+export function form(title, fields, { message = '', detail = '', okText = 'OK' } = {}) {
   return new Promise((resolve) => {
-    store.dialog = { type: 'confirm', title, message, okText, danger, resolve }
+    store.dialog = { type: 'form', title, message, detail, okText, fields: fields.map((f) => ({ ...f })), resolve }
+  })
+}
+export function confirm(title, message = '', { okText = 'Delete', danger = true, detail = '' } = {}) {
+  return new Promise((resolve) => {
+    store.dialog = { type: 'confirm', title, message, detail, okText, danger, resolve }
   })
 }
 
@@ -105,13 +111,15 @@ export function connectHost(host) {
   return openTerminal({ kind: 'ssh', host: { ...host } }, host.label || host.host)
 }
 
-export function openSftp(host = null) {
+/** paths: folders to open first, { left (local side), right (host side) }. */
+export function openSftp(host = null, paths = null) {
   const tab = {
     id: uid(),
     kind: 'sftp',
     title: host ? host.label || host.host : 'File Manager',
     host: host ? { ...host } : null,
     color: host?.color || '',
+    ...(paths?.left || paths?.right ? { paths } : {}),
   }
   store.tabs.push(tab)
   store.active = tab.id
@@ -137,6 +145,7 @@ export function splitFocused(dir, target) {
     if (node.type === 'leaf') {
       if (node.id !== tab.focus) return node
       const nl = leaf(target || node.target)
+      if (!target && node.cwd) nl.cwd = node.cwd // a split of the same session opens in its folder
       tab.focus = nl.id
       return { type: 'split', id: uid(), dir, ratio: 0.5, children: [node, nl] }
     }
@@ -268,7 +277,136 @@ export function sendToFocused(text) {
   const p = tab && panes.get(tab.focus)
   if (!p) return toast('Open a terminal first', 'error')
   p.write(text)
+  if (tab.broadcast) for (const q of broadcastPeers(tab, tab.focus)) q.write(text)
   p.focus()
+}
+
+// ---------- broadcast input ----------
+// A terminal tab with `broadcast` on sends what is typed (or pasted, or a snippet) in one
+// pane to the other panes of the tab too. A pane opts out with `leaf.noBroadcast`.
+
+const leavesOf = (n) => (n.type === 'leaf' ? [n] : n.children.flatMap(leavesOf))
+
+/** Turn broadcast on/off for a terminal tab (the active one by default). */
+export function toggleBroadcast(tab = activeTab()) {
+  if (!tab || tab.kind !== 'term') return
+  if (!tab.broadcast && tab.root.type === 'leaf')
+    return toast('Split the tab first: broadcast sends input to the other panes of the tab')
+  tab.broadcast = !tab.broadcast
+  if (tab.broadcast) for (const l of leavesOf(tab.root)) l.noBroadcast = false
+}
+
+/** Live panes of `tab`, other than `fromId`, that receive broadcast input. */
+export function broadcastPeers(tab, fromId) {
+  const from = leavesOf(tab.root).find((l) => l.id === fromId)
+  if (!from || from.noBroadcast) return []
+  return leavesOf(tab.root)
+    .filter((l) => l.id !== fromId && !l.noBroadcast)
+    .map((l) => panes.get(l.id))
+    .filter(Boolean)
+}
+
+/** Broadcast stops by itself once a tab is down to one pane. */
+watch(
+  () => store.tabs.map((t) => t.broadcast && t.root.type === 'leaf'),
+  () => {
+    for (const t of store.tabs) if (t.broadcast && t.root.type === 'leaf') t.broadcast = false
+  },
+)
+
+// ---------- rename ----------
+
+/** Rename a tab; an empty name goes back to the automatic title. */
+export async function renameTab(tab) {
+  if (!tab) return
+  const name = await prompt('Rename tab', { value: tab.title, placeholder: autoTitle(tab), okText: 'Rename' })
+  if (name == null) return
+  setTabName(tab, name)
+}
+export function setTabName(tab, name) {
+  name = String(name).trim()
+  tab.renamed = !!name
+  tab.title = name || autoTitle(tab)
+}
+function autoTitle(tab) {
+  if (tab.kind === 'sftp') return tab.host ? tab.host.label || tab.host.host : 'File Manager'
+  const t = firstLeaf(tab.root).target
+  return t.kind === 'local' ? t.title || 'Local' : t.host.label || t.host.host
+}
+
+// ---------- session: reopen the tabs of the last run ----------
+// Saved in the vault. SSH and file-manager hosts are stored by id and looked up again on
+// restore, so no password or key is copied; a host deleted since then is skipped.
+
+const hostRef = (h) =>
+  h?.id ? { id: h.id } : h ? { protocol: h.protocol, host: h.host, port: h.port, username: h.username } : null
+const hostOf = (ref) => (ref?.id ? store.vault.hosts.find((h) => h.id === ref.id) : ref?.host ? ref : null)
+
+function snapNode(n) {
+  if (n.type === 'split') return { type: 'split', dir: n.dir, ratio: n.ratio, children: n.children.map(snapNode) }
+  const t = n.target
+  const last = n.cwd ? { cwd: n.cwd } : {} // last folder the shell reported
+  if (t.kind === 'local') {
+    const { cwd, startup_command, title, workspace } = t
+    return { type: 'leaf', ...last, target: { kind: 'local', cwd, startup_command, title, workspace } }
+  }
+  return { type: 'leaf', ...last, target: { kind: 'ssh', host: hostRef(t.host) } }
+}
+function snapshot() {
+  if (!store.vault.settings.restore_tabs) return null
+  const tabs = store.tabs.map((t) => ({
+    kind: t.kind,
+    title: t.title,
+    renamed: !!t.renamed,
+    color: t.color,
+    ...(t.kind === 'sftp' ? { host: hostRef(t.host) } : { root: snapNode(t.root) }),
+  }))
+  return { tabs, active: store.tabs.findIndex((t) => t.id === store.active) }
+}
+
+function buildNode(n) {
+  if (n.type === 'split') {
+    const kids = n.children.map(buildNode).filter(Boolean)
+    if (kids.length < 2) return kids[0] || null
+    return { type: 'split', id: uid(), dir: n.dir, ratio: n.ratio || 0.5, children: kids }
+  }
+  const h = n.target?.kind === 'local' ? null : hostOf(n.target?.host)
+  const l = n.target?.kind === 'local' ? leaf({ ...n.target }) : h ? leaf({ kind: 'ssh', host: { ...h } }) : null
+  if (l && n.cwd) l.cwd = n.cwd
+  return l
+}
+
+/** Reopen the tabs saved by the last run (called once, after the vault is loaded). */
+export function restoreSession() {
+  const s = store.vault.session
+  if (store.vault.settings.restore_tabs && s?.tabs?.length && !store.tabs.length) {
+    for (const st of s.tabs) {
+      let tab
+      if (st.kind === 'sftp') {
+        const h = st.host ? hostOf(st.host) : null
+        if (st.host && !h) continue
+        tab = { id: uid(), kind: 'sftp', title: st.title, host: h ? { ...h } : null, color: st.color || '' }
+      } else {
+        const root = st.root && buildNode(st.root)
+        if (!root) continue
+        tab = { id: uid(), kind: 'term', title: st.title, root, focus: firstLeaf(root).id, color: st.color || '' }
+      }
+      if (st.renamed) tab.renamed = true
+      else tab.title = autoTitle(tab) // follow host renames
+      store.tabs.push(tab)
+    }
+    store.active = store.tabs[s.active]?.id || store.tabs[0]?.id || 'vault'
+  }
+  // From now on keep the saved session in step with the open tabs.
+  let timer = 0
+  watch(
+    () => JSON.stringify(snapshot()),
+    (json) => {
+      clearTimeout(timer)
+      timer = setTimeout(() => api.session_save({ session: JSON.parse(json) }).catch(() => {}), 500)
+    },
+    { immediate: true },
+  )
 }
 
 // Persist settings whenever they are edited in place (from the Settings page or a shortcut
@@ -289,6 +427,8 @@ watch(
             scrollback: +s.scrollback || 10000,
             line_height: +s.line_height || 1.2,
             ui_zoom: +s.ui_zoom || 1,
+            letter_spacing: +s.letter_spacing || 0,
+            min_contrast: +s.min_contrast || 1,
           },
         })
         .catch(err)

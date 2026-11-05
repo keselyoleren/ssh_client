@@ -19,6 +19,8 @@ pub async fn term_open_ssh(
     rows: u16,
     on_data: Channel<InvokeResponseBody>,
 ) -> Res<()> {
+    let label = if host.label.is_empty() { host.host.clone() } else { host.label.clone() };
+    let log = session_log(&st, &label);
     let conn = st.pool.get(&st.vault, &host).await?;
     st.terminals
         .open_ssh(
@@ -29,6 +31,7 @@ pub async fn term_open_ssh(
                 rows,
                 startup_command: host.startup_command,
                 agent_forward: host.agent_forward,
+                log,
             },
             on_data,
         )
@@ -47,8 +50,38 @@ pub fn term_open_local(
     startup_command: Option<String>,
     on_data: Channel<InvokeResponseBody>,
 ) -> Res<()> {
-    let opts = LocalOptions { cols, rows, shell, cwd, startup_command: startup_command.unwrap_or_default() };
+    let log = session_log(&st, "local");
+    let opts =
+        LocalOptions { cols, rows, shell, cwd, startup_command: startup_command.unwrap_or_default(), log };
     st.terminals.open_local(id, opts, on_data)
+}
+
+/// A new session log when logging is on in the settings (a log that can't be created is
+/// skipped rather than blocking the terminal).
+fn session_log(st: &State, label: &str) -> Option<crate::sessionlog::SessionLog> {
+    let dir = {
+        let d = st.vault.data.read();
+        if !d.settings.session_log {
+            return None;
+        }
+        crate::sessionlog::dir_from_setting(&d.settings.log_dir)
+    };
+    crate::sessionlog::SessionLog::create(&dir, label).ok()
+}
+
+/// The folder session logs are written to.
+#[tauri::command]
+pub fn log_dir(st: State) -> String {
+    crate::sessionlog::dir_from_setting(&st.vault.data.read().settings.log_dir).to_string_lossy().into_owned()
+}
+
+/// Open the session-log folder in the OS file manager (created if needed).
+#[tauri::command]
+pub fn log_dir_open(app: tauri::AppHandle, st: State) -> Res<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = crate::sessionlog::dir_from_setting(&st.vault.data.read().settings.log_dir);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

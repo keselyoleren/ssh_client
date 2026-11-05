@@ -69,7 +69,7 @@ export function suggestFor(typed, { history = [], snippets = [], target = '' } =
     other ||= h.cmd
   }
   if (other) return other.slice(typed.length)
-  const sn = snippets.find((s) => ok(s.command || ''))
+  const sn = snippets.find((s) => !(s.command || '').includes('{{') && ok(s.command || '')) // templates need their values
   return sn ? sn.command.slice(typed.length) : ''
 }
 

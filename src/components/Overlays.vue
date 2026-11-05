@@ -7,13 +7,17 @@ const input = ref(null)
 watch(
   () => store.dialog,
   async (d) => {
-    if (d?.type === 'prompt') {
+    if (d?.type === 'prompt' || d?.type === 'form') {
       await nextTick()
       input.value?.focus()
       input.value?.select()
     }
   },
 )
+/** Value of a dialog that was cancelled / confirmed. */
+const cancelValue = (d) => (d.type === 'confirm' ? false : null)
+const okValue = (d) =>
+  d.type === 'prompt' ? d.value : d.type === 'form' ? Object.fromEntries(d.fields.map((f) => [f.name, f.value])) : true
 function done(v) {
   const d = store.dialog
   store.dialog = null
@@ -44,14 +48,16 @@ function run(item) {
     </div>
   </div>
 
-  <div v-if="store.dialog" class="overlay" @mousedown.self="done(store.dialog.type === 'prompt' ? null : false)">
+  <div v-if="store.dialog" class="overlay" @mousedown.self="done(cancelValue(store.dialog))">
     <form
       class="modal"
       style="width: 420px"
-      @submit.prevent="done(store.dialog.type === 'prompt' ? store.dialog.value : true)"
+      @submit.prevent="done(okValue(store.dialog))"
+      @keydown.esc="done(cancelValue(store.dialog))"
     >
       <h2>{{ store.dialog.title }}</h2>
       <p v-if="store.dialog.message" class="muted" style="margin-top: -4px">{{ store.dialog.message }}</p>
+      <pre v-if="store.dialog.detail" class="detail mono">{{ store.dialog.detail }}</pre>
       <div v-if="store.dialog.type === 'prompt'" class="field">
         <label v-if="store.dialog.label">{{ store.dialog.label }}</label>
         <input
@@ -60,11 +66,22 @@ function run(item) {
           v-model="store.dialog.value"
           :type="store.dialog.password ? 'password' : 'text'"
           :placeholder="store.dialog.placeholder"
-          @keydown.esc="done(null)"
         />
       </div>
+      <template v-if="store.dialog.type === 'form'">
+        <div v-for="(f, i) in store.dialog.fields" :key="f.name" class="field">
+          <label class="mono">{{ f.label || f.name }}</label>
+          <input
+            :ref="(el) => i === 0 && (input = el)"
+            class="input mono"
+            v-model="f.value"
+            :placeholder="f.placeholder"
+            spellcheck="false"
+          />
+        </div>
+      </template>
       <div class="modal-foot">
-        <button type="button" class="btn" @click="done(store.dialog.type === 'prompt' ? null : false)">Cancel</button>
+        <button type="button" class="btn" @click="done(cancelValue(store.dialog))">Cancel</button>
         <button type="submit" class="btn" :class="store.dialog.danger ? 'danger' : 'primary'" v-focus>
           {{ store.dialog.okText }}
         </button>
@@ -131,5 +148,18 @@ export default {
   position: fixed;
   inset: 0;
   z-index: 69;
+}
+.detail {
+  max-height: 180px;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 11.5px;
+  white-space: pre;
+  -webkit-user-select: text;
+  user-select: text;
 }
 </style>

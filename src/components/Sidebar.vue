@@ -120,7 +120,10 @@ nav button {
   border: 0;
   border-radius: 8px;
   background: none;
-  color: var(--text-2);
+  color: var(--menu-text);
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
   cursor: pointer;
   text-align: left;
 }
@@ -131,7 +134,7 @@ nav button:hover {
 nav button.on {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 650;
 }
 .count {
   margin-left: auto;
