@@ -99,6 +99,35 @@ const segColor = (id) => termTheme()[ANSI[SEGMENTS[id].color]]
 
 // ---------- autosuggestions ----------
 
+const WEIGHTS = [
+  { id: 'normal', label: 'Regular' },
+  { id: '500', label: 'Medium' },
+  { id: '600', label: 'Semibold' },
+  { id: 'bold', label: 'Bold' },
+]
+const CONTRASTS = [
+  { v: 1, label: 'Off' },
+  { v: 3, label: 'Low (3:1)' },
+  { v: 4.5, label: 'Medium (4.5:1)' },
+  { v: 7, label: 'High (7:1)' },
+]
+const INACTIVE = [
+  { v: 'outline', label: 'Outline' },
+  { v: 'block', label: 'Block' },
+  { v: 'bar', label: 'Bar' },
+  { v: 'underline', label: 'Underline' },
+  { v: 'none', label: 'Hidden' },
+]
+const BELLS = [
+  { v: 'none', label: 'Off' },
+  { v: 'visual', label: 'Flash' },
+  { v: 'sound', label: 'Sound' },
+  { v: 'both', label: 'Both' },
+]
+async function pickLocalCwd() {
+  const dir = await openDialog({ directory: true, multiple: false, defaultPath: s.value.local_cwd || undefined })
+  if (dir) s.value.local_cwd = dir
+}
 const historyCount = computed(() => store.vault.history?.length || 0)
 async function clearHistory() {
   if (
@@ -342,6 +371,8 @@ async function importConfig() {
               fontFamily: s.font_family,
               fontSize: s.font_size + 'px',
               lineHeight: s.line_height,
+              fontWeight: s.font_weight || 'normal',
+              letterSpacing: (+s.letter_spacing || 0) + 'px',
             }"
           >
             <span :style="{ color: termTheme().green }">user@server</span>:<span :style="{ color: termTheme().blue }"
@@ -387,6 +418,67 @@ async function importConfig() {
                   +
                 </button>
               </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Letter spacing</b>
+                <div class="dim">Extra space between characters, in pixels</div>
+              </div>
+              <div class="stepper">
+                <button @click="bump('letter_spacing', -1, 0, 4, 0.5)">−</button
+                ><input type="number" step="0.5" min="0" max="4" v-model.number="s.letter_spacing" /><button
+                  @click="bump('letter_spacing', 1, 0, 4, 0.5)"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Font weight</b>
+                <div class="dim">Heavier text reads better on some fonts and screens</div>
+              </div>
+              <div class="seg">
+                <button
+                  v-for="w in WEIGHTS"
+                  :key="w.id"
+                  :class="{ on: (s.font_weight || 'normal') === w.id }"
+                  :style="{ fontWeight: w.id }"
+                  @click="s.font_weight = w.id"
+                >
+                  {{ w.label }}
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <b>Bold text weight</b>
+              <div class="seg">
+                <button
+                  v-for="w in WEIGHTS.slice(1)"
+                  :key="w.id"
+                  :class="{ on: (s.font_weight_bold || 'bold') === w.id }"
+                  :style="{ fontWeight: w.id }"
+                  @click="s.font_weight_bold = w.id"
+                >
+                  {{ w.label }}
+                </button>
+              </div>
+            </div>
+            <div class="set">
+              <div>
+                <b>Bright colors for bold text</b>
+                <div class="dim">Bold text in the standard colors is drawn in their bright variant</div>
+              </div>
+              <button class="switch" :class="{ on: s.bold_bright }" @click="s.bold_bright = !s.bold_bright"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Minimum contrast</b>
+                <div class="dim">Lightens or darkens text that is hard to read on its background</div>
+              </div>
+              <select class="select" style="width: 170px" v-model.number="s.min_contrast">
+                <option v-for="c in CONTRASTS" :key="c.v" :value="c.v">{{ c.label }}</option>
+              </select>
             </div>
           </div>
 
@@ -515,6 +607,45 @@ async function importConfig() {
                 @click="s.cursor_blink = !s.cursor_blink"
               ></button>
             </div>
+            <div class="set">
+              <div>
+                <b>Cursor in unfocused panes</b>
+                <div class="dim">How the cursor looks in panes and windows you are not typing in</div>
+              </div>
+              <select class="select" style="width: 170px" v-model="s.cursor_inactive">
+                <option v-for="c in INACTIVE" :key="c.v" :value="c.v">{{ c.label }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="section-title">Keyboard &amp; bell</div>
+          <div class="card pad">
+            <div v-if="store.platform.os === 'macos'" class="set">
+              <div>
+                <b>Use Option as Meta key</b>
+                <div class="dim">
+                  On: Option+B / Option+F jump words in the shell. Off: Option types special characters (@, €, [ …) as
+                  on non-US keyboards
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.option_meta }" @click="s.option_meta = !s.option_meta"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Bell</b>
+                <div class="dim">When a program rings the terminal bell (for example Tab with no completion)</div>
+              </div>
+              <div class="seg">
+                <button
+                  v-for="b in BELLS"
+                  :key="b.v"
+                  :class="{ on: (s.bell || 'visual') === b.v }"
+                  @click="s.bell = b.v"
+                >
+                  {{ b.label }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="section-title">Behavior</div>
@@ -547,6 +678,13 @@ async function importConfig() {
             </div>
             <div class="set">
               <div>
+                <b>Warn before pasting several lines</b>
+                <div class="dim">Shows what will be pasted first, since each line can run as a command</div>
+              </div>
+              <button class="switch" :class="{ on: s.paste_warn }" @click="s.paste_warn = !s.paste_warn"></button>
+            </div>
+            <div class="set">
+              <div>
                 <b>Reconnect SSH automatically</b>
                 <div class="dim">When a connection drops, retry for about 3 minutes</div>
               </div>
@@ -570,6 +708,41 @@ async function importConfig() {
                 :class="{ on: s.confirm_close }"
                 @click="s.confirm_close = !s.confirm_close"
               ></button>
+            </div>
+          </div>
+
+          <div class="section-title">Local terminal</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Shell</b>
+                <div class="dim">Program run by new local terminals. Leave empty for the system default</div>
+              </div>
+              <input
+                class="input mono"
+                style="width: 240px"
+                v-model.trim="s.local_shell"
+                :placeholder="store.platform.shell || 'default'"
+                spellcheck="false"
+              />
+            </div>
+            <div class="set">
+              <div>
+                <b>Start in folder</b>
+                <div class="dim">Where new local terminals open. Workspace projects keep their own folder</div>
+              </div>
+              <div class="row" style="gap: 6px">
+                <input
+                  class="input mono"
+                  style="width: 190px"
+                  v-model.trim="s.local_cwd"
+                  placeholder="Home folder"
+                  spellcheck="false"
+                />
+                <button class="btn" title="Choose folder" @click="pickLocalCwd">
+                  <Icon name="folder" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
         </template>

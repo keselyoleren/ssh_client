@@ -52,6 +52,7 @@ function run(item) {
     >
       <h2>{{ store.dialog.title }}</h2>
       <p v-if="store.dialog.message" class="muted" style="margin-top: -4px">{{ store.dialog.message }}</p>
+      <pre v-if="store.dialog.detail" class="detail mono">{{ store.dialog.detail }}</pre>
       <div v-if="store.dialog.type === 'prompt'" class="field">
         <label v-if="store.dialog.label">{{ store.dialog.label }}</label>
         <input
@@ -131,5 +132,18 @@ export default {
   position: fixed;
   inset: 0;
   z-index: 69;
+}
+.detail {
+  max-height: 180px;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 11.5px;
+  white-space: pre;
+  -webkit-user-select: text;
+  user-select: text;
 }
 </style>

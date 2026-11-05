@@ -20,6 +20,7 @@ import {
   loadVault,
   toggleBroadcast,
   broadcastPeers,
+  confirm,
 } from '../lib/store'
 import { termTheme } from '../lib/appearance'
 import { actionFor, withHint } from '../lib/keymap'
@@ -61,7 +62,14 @@ function options() {
     lineHeight: s.line_height || 1.2,
     cursorStyle: s.cursor_style || 'block',
     cursorBlink: s.cursor_blink ?? true,
+    cursorInactiveStyle: s.cursor_inactive || 'outline',
     scrollback: s.scrollback || 10000,
+    fontWeight: s.font_weight || 'normal',
+    fontWeightBold: s.font_weight_bold || 'bold',
+    letterSpacing: +s.letter_spacing || 0,
+    minimumContrastRatio: +s.min_contrast || 1,
+    drawBoldTextInBrightColors: s.bold_bright ?? true,
+    macOptionIsMeta: s.option_meta ?? true,
     theme: theme(),
   }
 }
@@ -155,7 +163,12 @@ function wantPrompt() {
   if (!s.prompt_enabled || !s.prompt_segments?.length) return false
   const scope = s.prompt_scope || 'all'
   if (target.kind === 'local')
-    return scope !== 'ssh' && store.platform.os !== 'windows' && !target.startup_command?.trim()
+    return (
+      scope !== 'ssh' &&
+      store.platform.os !== 'windows' &&
+      !target.startup_command?.trim() &&
+      (!s.local_shell?.trim() || /(^|\/)(bash|zsh)$/.test(s.local_shell.trim())) // the prompt is bash/zsh only
+    )
   // a startup command (tmux attach, sudo -i…) would receive the snippet instead of the login shell
   return scope !== 'local' && !target.host.startup_command?.trim()
 }
@@ -242,8 +255,8 @@ async function connect() {
         id,
         cols: term.cols,
         rows: term.rows,
-        shell: null,
-        cwd: target.cwd || null,
+        shell: S().local_shell?.trim() || null,
+        cwd: target.cwd || S().local_cwd?.trim() || null,
         startupCommand: target.startup_command || null,
         onData: ch,
       })
@@ -366,10 +379,53 @@ function onDragDrop(ev) {
 }
 
 async function paste() {
+  let t
   try {
-    const t = await readText()
-    if (t) term.paste(t)
-  } catch {}
+    t = await readText()
+  } catch {
+    return
+  }
+  if (!t) return
+  // Several lines run as several commands the moment they land in a shell: ask first.
+  if (S().paste_warn !== false && /[\r\n]/.test(t)) {
+    const lines = t.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n')
+    const preview = lines.slice(0, 6).join('\n') + (lines.length > 6 ? `\n… ${lines.length - 6} more` : '')
+    const ok = await confirm(
+      `Paste ${lines.length} line${lines.length === 1 ? '' : 's'}?`,
+      lines.length === 1
+        ? 'It ends with a line break, so it runs as soon as it is pasted.'
+        : 'Each line may run as a command as soon as it is pasted.',
+      { okText: 'Paste', danger: false, detail: preview },
+    )
+    term.focus()
+    if (!ok) return
+  }
+  term.paste(t)
+}
+
+// ---------- bell ----------
+const ringing = ref(false)
+let audio = null
+function bell() {
+  const mode = S().bell || 'visual'
+  if (mode === 'visual' || mode === 'both') {
+    ringing.value = false
+    requestAnimationFrame(() => (ringing.value = true))
+    setTimeout(() => (ringing.value = false), 180)
+  }
+  if (mode === 'sound' || mode === 'both') {
+    try {
+      audio ||= new AudioContext()
+      const o = audio.createOscillator(),
+        g = audio.createGain()
+      o.frequency.value = 880
+      g.gain.setValueAtTime(0.08, audio.currentTime)
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.15)
+      o.connect(g).connect(audio.destination)
+      o.start()
+      o.stop(audio.currentTime + 0.15)
+    } catch {}
+  }
 }
 function copySel() {
   const s = term.getSelection()
@@ -455,8 +511,6 @@ onMounted(async () => {
   term = new Terminal({
     ...options(),
     allowProposedApi: true,
-    macOptionIsMeta: true,
-    drawBoldTextInBrightColors: true,
     rightClickSelectsWord: false,
   })
   fit = new FitAddon()
@@ -496,6 +550,7 @@ onMounted(async () => {
   term.onCursorMove(refreshGhost)
   term.onScroll(refreshGhost)
   term.onResize(refreshGhost)
+  term.onBell(bell)
   term.onSelectionChange(() => {
     if (S().copy_on_select && term.hasSelection()) copySel()
   })
@@ -600,6 +655,7 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   cancelAnimationFrame(raf)
   unmounted = true
+  audio?.close().catch(() => {})
   clearTimeout(retryTimer)
   window.removeEventListener('online', onOnline)
   unlistenDrop?.()
@@ -614,7 +670,7 @@ onBeforeUnmount(() => {
   <div
     ref="root"
     class="tp"
-    :class="{ focused: focused && split, broadcasting, dropping }"
+    :class="{ focused: focused && split, broadcasting, dropping, ringing }"
     :style="{ background: theme().background }"
   >
     <div
@@ -715,6 +771,14 @@ onBeforeUnmount(() => {
 }
 .tp.broadcasting.focused {
   border-color: var(--warn);
+}
+.tp.ringing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  z-index: 5;
 }
 .tp.dropping,
 .tp.dropping.broadcasting {

@@ -56,9 +56,9 @@ export function prompt(title, { value = '', placeholder = '', label = '', okText
     store.dialog = { type: 'prompt', title, value, placeholder, label, okText, password, resolve }
   })
 }
-export function confirm(title, message = '', { okText = 'Delete', danger = true } = {}) {
+export function confirm(title, message = '', { okText = 'Delete', danger = true, detail = '' } = {}) {
   return new Promise((resolve) => {
-    store.dialog = { type: 'confirm', title, message, okText, danger, resolve }
+    store.dialog = { type: 'confirm', title, message, detail, okText, danger, resolve }
   })
 }
 
@@ -416,6 +416,8 @@ watch(
             scrollback: +s.scrollback || 10000,
             line_height: +s.line_height || 1.2,
             ui_zoom: +s.ui_zoom || 1,
+            letter_spacing: +s.letter_spacing || 0,
+            min_contrast: +s.min_contrast || 1,
           },
         })
         .catch(err)

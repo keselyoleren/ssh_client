@@ -159,6 +159,26 @@ pub struct Settings {
     pub auto_reconnect: bool,
     /// Reopen the tabs that were open when the app was closed.
     pub restore_tabs: bool,
+    /// Terminal text weight ("normal", "500", "600", "bold") and the weight of bold text.
+    pub font_weight: String,
+    pub font_weight_bold: String,
+    /// Extra pixels between characters.
+    pub letter_spacing: f32,
+    /// Draw bold text in the bright ANSI colours.
+    pub bold_bright: bool,
+    /// xterm minimum contrast ratio (1 = off).
+    pub min_contrast: f32,
+    /// Cursor shape while the terminal is not focused: outline | block | bar | underline | none.
+    pub cursor_inactive: String,
+    /// What the terminal bell does: none | visual | sound | both.
+    pub bell: String,
+    /// macOS: the Option key sends Meta (Esc+key) instead of typing special characters.
+    pub option_meta: bool,
+    /// Ask before pasting text that contains a line break.
+    pub paste_warn: bool,
+    /// Local terminals: shell to run (empty = the system default) and folder to start in.
+    pub local_shell: String,
+    pub local_cwd: String,
 }
 
 impl Default for Settings {
@@ -188,6 +208,17 @@ impl Default for Settings {
             sidebar_hidden: false,
             auto_reconnect: true,
             restore_tabs: true,
+            font_weight: "normal".into(),
+            font_weight_bold: "bold".into(),
+            letter_spacing: 0.0,
+            bold_bright: true,
+            min_contrast: 1.0,
+            cursor_inactive: "outline".into(),
+            bell: "visual".into(),
+            option_meta: true,
+            paste_warn: true,
+            local_shell: String::new(),
+            local_cwd: String::new(),
         }
     }
 }
