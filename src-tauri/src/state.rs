@@ -2,6 +2,7 @@
 
 use parking_lot::Mutex;
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use crate::error::Res;
@@ -20,6 +21,16 @@ pub struct AppState {
     /// Running transfers, keyed by the UI-provided transfer id (for cancel).
     pub transfers: Mutex<HashMap<String, Progress>>,
     pub forwards: Forwards,
+    /// Remote files opened in another app, watched for saves (see `fs_open_external`).
+    pub watches: Mutex<HashMap<String, Watch>>,
+}
+
+/// A downloaded copy of a remote file, kept so a save in another app can be uploaded back.
+pub struct Watch {
+    pub fsid: String,
+    pub local: String,
+    pub remote: String,
+    pub stop: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -31,6 +42,7 @@ impl AppState {
             files: Mutex::new(HashMap::new()),
             transfers: Mutex::new(HashMap::new()),
             forwards: Forwards::default(),
+            watches: Mutex::new(HashMap::new()),
         }
     }
 

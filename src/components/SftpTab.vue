@@ -199,6 +199,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   unlisten?.()
+  for (const ed of externals) api.fs_unwatch({ wid: ed.wid }).catch(() => {})
   for (const s of [left, right]) if (s.fsid) api.fs_close({ id: s.fsid })
   if (localFs) api.fs_close({ id: localFs })
 })
@@ -225,11 +226,44 @@ async function openExternal(side, e) {
   const remote = !!side.host
   if (remote) toast(`Downloading ${e.name}…`)
   try {
-    await api.fs_open_external({ id: side.fsid, path: e.path })
-    if (remote) toast(`Opened a downloaded copy of ${e.name}: changes stay on this computer`)
+    const ch = new Channel()
+    const wid = await api.fs_open_external({ id: side.fsid, path: e.path, onChange: ch })
+    if (!wid) return
+    const ed = reactive({
+      wid,
+      name: e.name,
+      path: e.path,
+      host: side.host.label || side.host.host,
+      side,
+      state: 'open',
+    })
+    ch.onmessage = () => {
+      if (ed.state !== 'uploading') ed.state = 'changed'
+    }
+    externals.unshift(ed)
+    toast(`${e.name} opened in its app: save it there and K-Shell offers to upload it`)
   } catch (x) {
     err(x)
   }
+}
+
+// ---------- remote files open in other apps ----------
+const externals = reactive([]) // { wid, name, path, host, side, state: open | changed | uploading }
+async function uploadBack(ed) {
+  ed.state = 'uploading'
+  try {
+    await api.fs_upload_back({ wid: ed.wid })
+    ed.state = 'open'
+    toast(`Uploaded ${ed.name} to ${ed.host}`)
+    paneOf(ed.side).value?.list()
+  } catch (x) {
+    ed.state = 'changed'
+    err(x)
+  }
+}
+function stopWatching(ed) {
+  api.fs_unwatch({ wid: ed.wid }).catch(() => {})
+  externals.splice(externals.indexOf(ed), 1)
 }
 /** The editor found binary content: offer the default app instead. */
 function notText(side, e) {
@@ -264,6 +298,33 @@ function notText(side, e) {
         @edit="edit"
         @dragstart="dragstart"
       />
+    </div>
+    <div v-if="externals.length" class="exts">
+      <div v-for="ed in externals" :key="ed.wid" class="ext" :class="ed.state">
+        <Icon :name="ed.state === 'open' ? 'eye' : 'edit'" :size="14" />
+        <span class="ename mono" :title="ed.path">{{ ed.name }}</span>
+        <span class="dim">
+          {{
+            ed.state === 'changed'
+              ? `changed in another app · not on ${ed.host} yet`
+              : ed.state === 'uploading'
+                ? 'uploading…'
+                : `open in another app · saves are offered for upload to ${ed.host}`
+          }}
+        </span>
+        <div style="flex: 1"></div>
+        <button
+          v-if="ed.state !== 'open'"
+          class="btn sm primary"
+          :disabled="ed.state === 'uploading'"
+          @click="uploadBack(ed)"
+        >
+          <Icon name="upload" :size="12" /> Upload
+        </button>
+        <button class="iconbtn" title="Stop watching this file" @click="stopWatching(ed)">
+          <Icon name="x" :size="13" />
+        </button>
+      </div>
     </div>
     <div v-if="transfers.length" class="xfers">
       <div class="xh">
@@ -336,6 +397,40 @@ function notText(side, e) {
 }
 .split {
   background: var(--line);
+}
+.exts {
+  flex: none;
+  max-height: 30%;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.ext {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 14px;
+  font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.ext:last-child {
+  border-bottom: 0;
+}
+.ext .ename {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ext .dim {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext.changed {
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.ext.changed .icon {
+  color: var(--warn);
 }
 .xfers {
   flex: none;

@@ -282,6 +282,24 @@ impl Fs {
 }
 
 /// A unique path in the OS temp dir.
+/// Delete copies opened in other apps (`Fs::local_copy`) that are more than a day old.
+pub fn clean_open_copies() {
+    let root = std::env::temp_dir().join("kshell-open");
+    let Ok(dirs) = std::fs::read_dir(&root) else { return };
+    let day = std::time::Duration::from_secs(24 * 3600);
+    for d in dirs.flatten() {
+        let old = d
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|age| age > day);
+        if old {
+            let _ = std::fs::remove_dir_all(d.path());
+        }
+    }
+}
+
 pub fn temp_path() -> String {
     std::env::temp_dir().join(format!("kshell-{}", uuid::Uuid::new_v4())).to_string_lossy().into_owned()
 }

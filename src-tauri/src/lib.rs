@@ -68,6 +68,7 @@ pub fn run() {
             vault::migrate_legacy_dir(&dir);
             let vault = vault::Vault::load(dir).map_err(|e| anyhow::anyhow!(e))?;
             app.manage(state::AppState::new(vault));
+            std::thread::spawn(fs::clean_open_copies);
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -117,6 +118,8 @@ pub fn run() {
             files::fs_read_text,
             files::fs_read_bytes,
             files::fs_open_external,
+            files::fs_upload_back,
+            files::fs_unwatch,
             files::fs_write_text,
             files::fs_presign,
             files::local_stat,
