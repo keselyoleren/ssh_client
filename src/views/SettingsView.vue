@@ -6,6 +6,7 @@ import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialo
 import { store, loadVault, toast, err, prompt, confirm } from '../lib/store'
 import { api } from '../lib/api'
 import { themes, isDarkTheme } from '../lib/themes'
+import { RULE_COLORS, regexError } from '../lib/highlight'
 import { ACCENTS, ZOOMS, appMode, termTheme, termThemeId } from '../lib/appearance'
 import { hint } from '../lib/keymap'
 import Icon from '../components/Icon.vue'
@@ -124,6 +125,21 @@ const BELLS = [
   { v: 'sound', label: 'Sound' },
   { v: 'both', label: 'Both' },
 ]
+// ---------- keyword highlighting ----------
+const DEFAULT_RULES = [
+  { pattern: 'error, fatal, failed, failure, exception, panic, denied, refused', color: 'red' },
+  { pattern: 'warn, warning, deprecated', color: 'yellow' },
+  { pattern: 'success, succeeded, passed', color: 'green' },
+].map((r) => ({ ...r, regex: false, case_sensitive: false, enabled: true }))
+function addRule() {
+  s.value.highlight_rules ||= []
+  s.value.highlight_rules.push({ pattern: '', color: 'cyan', regex: false, case_sensitive: false, enabled: true })
+}
+const resetRules = () => (s.value.highlight_rules = DEFAULT_RULES.map((r) => ({ ...r })))
+/** A short example of what the rule colours. */
+const samplePattern = (r) =>
+  r.regex ? (regexError(r.pattern) ? 'invalid' : 'match') : (r.pattern.split(',')[0] || '').trim() || 'word'
+
 // ---------- session logs ----------
 const logDir = ref('')
 const refreshLogDir = () =>
@@ -741,6 +757,73 @@ async function importConfig() {
             </div>
           </div>
 
+          <div class="section-title">Highlight keywords</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Color matching words in terminal output</b>
+                <div class="dim">The output itself is not changed; full-screen programs like vim are left alone</div>
+              </div>
+              <button class="switch" :class="{ on: s.highlight }" @click="s.highlight = !s.highlight"></button>
+            </div>
+            <template v-if="s.highlight">
+              <div v-for="(r, i) in s.highlight_rules" :key="i" class="hlrule" :class="{ off: !r.enabled }">
+                <button
+                  class="switch sm"
+                  :class="{ on: r.enabled }"
+                  :title="r.enabled ? 'Turn this rule off' : 'Turn this rule on'"
+                  @click="r.enabled = !r.enabled"
+                ></button>
+                <select
+                  class="select hlcolor"
+                  v-model="r.color"
+                  :style="{ color: termTheme()[r.color] || r.color }"
+                  title="Color"
+                >
+                  <option v-for="c in RULE_COLORS" :key="c" :value="c" :style="{ color: termTheme()[c] }">
+                    {{ c }}
+                  </option>
+                </select>
+                <div class="hlpat">
+                  <input
+                    class="input mono"
+                    v-model="r.pattern"
+                    :placeholder="r.regex ? 'e.g. \\b5\\d\\d\\b' : 'words, separated by commas'"
+                    spellcheck="false"
+                    :class="{ bad: r.regex && regexError(r.pattern) }"
+                    :title="r.regex ? regexError(r.pattern) : ''"
+                  />
+                  <span class="hlprev mono">
+                    <span :style="{ color: termTheme()[r.color] || r.color }">{{ samplePattern(r) }}</span>
+                  </span>
+                </div>
+                <button
+                  class="tog mono"
+                  :class="{ on: r.case_sensitive }"
+                  title="Match case"
+                  @click="r.case_sensitive = !r.case_sensitive"
+                >
+                  Aa
+                </button>
+                <button
+                  class="tog mono"
+                  :class="{ on: r.regex }"
+                  title="Regular expression"
+                  @click="r.regex = !r.regex"
+                >
+                  .*
+                </button>
+                <button class="iconbtn" title="Remove rule" @click="s.highlight_rules.splice(i, 1)">
+                  <Icon name="trash" :size="13" />
+                </button>
+              </div>
+              <div class="row" style="gap: 8px; padding-top: 8px">
+                <button class="btn sm" @click="addRule"><Icon name="plus" :size="12" /> Add rule</button>
+                <button class="btn ghost sm" @click="resetRules">Reset to defaults</button>
+              </div>
+            </template>
+          </div>
+
           <div class="section-title">Session logs</div>
           <div class="card pad">
             <div class="set">
@@ -1306,5 +1389,64 @@ async function importConfig() {
 }
 .stepper input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+}
+.hlrule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.hlrule.off .hlpat,
+.hlrule.off .hlcolor {
+  opacity: 0.5;
+}
+.hlcolor {
+  width: 96px;
+  font-weight: 600;
+}
+.hlpat {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.hlpat .input {
+  width: 100%;
+  padding-right: 90px;
+}
+.hlpat .input.bad {
+  border-color: var(--danger);
+}
+.hlprev {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.tog {
+  height: 28px;
+  min-width: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: none;
+  color: var(--text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.tog.on {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.switch.sm {
+  transform: scale(0.85);
 }
 </style>

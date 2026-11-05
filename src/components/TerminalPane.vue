@@ -26,6 +26,7 @@ import { termTheme } from '../lib/appearance'
 import { actionFor, withHint } from '../lib/keymap'
 import { promptInjection, MARKER } from '../lib/prompt'
 import { resolveSnippet } from '../lib/snippetvars'
+import { createHighlighter } from '../lib/highlight'
 import { LineTracker, suggestFor, firstWord, cursorContext } from '../lib/suggest'
 import Icon from './Icon.vue'
 
@@ -370,6 +371,24 @@ function runCommand(cmd) {
   write(cmd)
   if (props.tab.broadcast) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.write(cmd)
 }
+// ---------- keyword highlighting ----------
+let hl = null
+const configureHighlight = () => hl?.configure(S().highlight === false ? [] : S().highlight_rules, theme())
+watch(
+  () => [
+    S().highlight,
+    S().highlight_rules,
+    S().term_theme,
+    S().term_theme_light,
+    S().term_theme_sync,
+    store.systemDark,
+  ],
+  configureHighlight,
+  {
+    deep: true,
+  },
+)
+
 // ---------- renderer ----------
 // WebGL draws fast but every context holds GPU memory and a glyph atlas of a few MB, and
 // the webview only allows a handful of contexts at once. Panes of tabs you aren't looking
@@ -582,6 +601,9 @@ onMounted(async () => {
   )
   term.open(el.value)
   if (props.visible) attachGl()
+  hl = createHighlighter(term)
+  configureHighlight()
+  term.onWriteParsed(() => hl.schedule())
 
   term.onData((d) => {
     if (status.value === 'open') {
@@ -725,6 +747,7 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   cancelAnimationFrame(raf)
   unmounted = true
+  hl?.dispose()
   clearTimeout(glTimer)
   audio?.close().catch(() => {})
   clearTimeout(retryTimer)

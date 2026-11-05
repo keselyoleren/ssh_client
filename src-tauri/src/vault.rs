@@ -185,6 +185,36 @@ pub struct Settings {
     pub session_log: bool,
     /// Folder for session logs ("" = Documents/K-Shell Logs).
     pub log_dir: String,
+    /// Colour words matching `highlight_rules` in terminal output.
+    pub highlight: bool,
+    pub highlight_rules: Vec<HighlightRule>,
+}
+
+/// Terminal output highlighting: words (comma separated) or a regular expression, drawn in
+/// a colour of the terminal theme ("red", "yellow" …) or a hex colour.
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct HighlightRule {
+    pub pattern: String,
+    pub color: String,
+    pub regex: bool,
+    pub case_sensitive: bool,
+    pub enabled: bool,
+}
+
+fn default_highlights() -> Vec<HighlightRule> {
+    let rule = |pattern: &str, color: &str| HighlightRule {
+        pattern: pattern.into(),
+        color: color.into(),
+        regex: false,
+        case_sensitive: false,
+        enabled: true,
+    };
+    vec![
+        rule("error, fatal, failed, failure, exception, panic, denied, refused", "red"),
+        rule("warn, warning, deprecated", "yellow"),
+        rule("success, succeeded, passed", "green"),
+    ]
 }
 
 impl Default for Settings {
@@ -228,6 +258,8 @@ impl Default for Settings {
             track_cwd: true,
             session_log: false,
             log_dir: String::new(),
+            highlight: true,
+            highlight_rules: default_highlights(),
         }
     }
 }
