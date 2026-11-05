@@ -17,6 +17,7 @@ import {
   splitFocused,
   toggleSidebar,
   toggleBroadcast,
+  renameTab,
 } from './store'
 import { zoomBy, zoomReset } from './appearance'
 
@@ -82,6 +83,7 @@ export const ACTIONS = [
     run: openLocal,
   },
   { id: 'new_sftp', group: 'Tabs', label: 'Open file manager', run: () => openSftp() },
+  { id: 'rename_tab', group: 'Tabs', label: 'Rename tab', run: () => renameTab(activeTab()) },
   {
     id: 'close_tab',
     group: 'Tabs',

@@ -1,8 +1,18 @@
 <script setup>
-import { store, closeTab, openLocal, confirm, terminalDrop, toggleSidebar } from '../lib/store'
+import {
+  store,
+  closeTab,
+  openLocal,
+  confirm,
+  terminalDrop,
+  toggleSidebar,
+  openMenu,
+  setTabName,
+  toggleBroadcast,
+} from '../lib/store'
 import Icon from './Icon.vue'
 import { installUpdate } from '../lib/updater'
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick } from 'vue'
 import { withHint } from '../lib/keymap'
 
 // Tab dragging uses mouse events, not HTML5 drag & drop: Tauri keeps native drag & drop for
@@ -30,7 +40,7 @@ function hoverTab(id) {
   if (id && id !== drag.value.id && id !== store.active) hoverTimer = setTimeout(() => (store.active = id), 500)
 }
 function tabDown(e, t) {
-  if (e.button !== 0 || e.target.closest('.x')) return
+  if (e.button !== 0 || e.target.closest('.x') || editing.value === t.id) return
   const sx = e.clientX,
     sy = e.clientY
   let started = false
@@ -113,6 +123,34 @@ async function close(t) {
   closeTab(t.id)
 }
 
+// ---------- rename (double-click a tab, or its context menu) ----------
+const editing = ref(null) // id of the tab being renamed
+const draft = ref('')
+async function startRename(t) {
+  editing.value = t.id
+  draft.value = t.title
+  await nextTick()
+  const el = scroll.value?.querySelector('.tab .rename')
+  el?.focus()
+  el?.select()
+}
+function endRename(t, save) {
+  if (editing.value !== t.id) return
+  editing.value = null
+  if (save) setTabName(t, draft.value)
+}
+function tabMenu(e, t) {
+  const items = [{ label: 'Rename tab', icon: 'edit', action: () => startRename(t) }]
+  if (t.kind === 'term' && t.root.type === 'split')
+    items.push({
+      label: t.broadcast ? 'Stop broadcasting input' : 'Broadcast input to all panes',
+      icon: 'broadcast',
+      action: () => toggleBroadcast(t),
+    })
+  items.push('-', { label: 'Close tab', icon: 'x', danger: true, action: () => close(t) })
+  openMenu(e, items)
+}
+
 const updateLabel = computed(() => {
   const u = store.update
   if (u.state === 'downloading') return u.progress == null ? 'Downloading…' : `Downloading ${u.progress}%`
@@ -151,6 +189,8 @@ const updateLabel = computed(() => {
         @mousedown="tabDown($event, t)"
         @click="select(t)"
         @mousedown.middle.prevent="close(t)"
+        @dblclick="startRename(t)"
+        @contextmenu="tabMenu($event, t)"
       >
         <span
           class="dot"
@@ -160,7 +200,20 @@ const updateLabel = computed(() => {
         <span v-if="t.broadcast" class="bcast" title="Broadcasting input to the panes of this tab"
           ><Icon name="broadcast" :size="12"
         /></span>
-        <span class="title">{{ t.title }}</span>
+        <input
+          v-if="editing === t.id"
+          v-model="draft"
+          class="rename"
+          spellcheck="false"
+          :placeholder="t.title"
+          @keydown.enter.prevent="endRename(t, true)"
+          @keydown.esc.prevent.stop="endRename(t, false)"
+          @keydown.stop
+          @blur="endRename(t, true)"
+          @click.stop
+          @dblclick.stop
+        />
+        <span v-else class="title" title="Double-click to rename">{{ t.title }}</span>
         <button class="x" @click.stop="close(t)"><Icon name="x" :size="12" /></button>
       </div>
       <button class="iconbtn add" :title="withHint('New local terminal', 'new_local')" @click="openLocal()">
@@ -301,6 +354,17 @@ const updateLabel = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.rename {
+  width: 120px;
+  min-width: 0;
+  padding: 1px 4px;
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  outline: none;
 }
 .bcast {
   display: inline-flex;

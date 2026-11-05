@@ -50,7 +50,7 @@ const otherOf = (side) => (side === left ? right : left)
 
 function pick(side, hostId) {
   side.host = hostId ? { ...store.vault.hosts.find((h) => h.id === hostId) } : null
-  if (side === right) props.tab.title = side.host ? side.host.label || side.host.host : 'Local'
+  if (side === right && !props.tab.renamed) props.tab.title = side.host ? side.host.label || side.host.host : 'Local'
   connect(side)
 }
 

@@ -305,6 +305,26 @@ watch(
   },
 )
 
+// ---------- rename ----------
+
+/** Rename a tab; an empty name goes back to the automatic title. */
+export async function renameTab(tab) {
+  if (!tab) return
+  const name = await prompt('Rename tab', { value: tab.title, placeholder: autoTitle(tab), okText: 'Rename' })
+  if (name == null) return
+  setTabName(tab, name)
+}
+export function setTabName(tab, name) {
+  name = String(name).trim()
+  tab.renamed = !!name
+  tab.title = name || autoTitle(tab)
+}
+function autoTitle(tab) {
+  if (tab.kind === 'sftp') return tab.host ? tab.host.label || tab.host.host : 'File Manager'
+  const t = firstLeaf(tab.root).target
+  return t.kind === 'local' ? t.title || 'Local' : t.host.label || t.host.host
+}
+
 // Persist settings whenever they are edited in place (from the Settings page or a shortcut
 // such as zoom). Replacing the whole object (loadVault) is not an edit and is skipped.
 let saveTimer = 0
