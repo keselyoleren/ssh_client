@@ -25,6 +25,7 @@ import {
 import { termTheme } from '../lib/appearance'
 import { actionFor, withHint } from '../lib/keymap'
 import { promptInjection, MARKER } from '../lib/prompt'
+import { resolveSnippet } from '../lib/snippetvars'
 import { LineTracker, suggestFor, firstWord, cursorContext } from '../lib/suggest'
 import Icon from './Icon.vue'
 
@@ -530,8 +531,10 @@ function menu(e) {
             label: s.name,
             icon: 'code',
             action: () => {
-              runCommand(s.command + '\r')
-              term.focus()
+              resolveSnippet(s).then((cmd) => {
+                if (cmd != null) runCommand(cmd + '\r')
+                term.focus()
+              })
             },
           })),
         ]

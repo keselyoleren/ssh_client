@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import { store, loadVault, err, confirm, sendToFocused, toast } from '../lib/store'
 import { api } from '../lib/api'
 import Icon from '../components/Icon.vue'
+import { resolveSnippet, varsOf } from '../lib/snippetvars'
 
 const q = ref('')
 const edit = ref(null)
@@ -36,11 +37,13 @@ async function remove(s) {
   await api.snippet_delete({ id: s.id })
   loadVault()
 }
-function paste(s) {
+async function paste(s) {
   if (!store.tabs.some((t) => t.kind === 'term')) return toast('Open a terminal first', 'error')
+  const cmd = await resolveSnippet(s)
+  if (cmd == null) return
   const t = store.tabs.filter((t) => t.kind === 'term').pop()
   store.active = t.id
-  setTimeout(() => sendToFocused(s.command + '\r'), 30)
+  setTimeout(() => sendToFocused(cmd + '\r'), 30)
 }
 function openRun(s) {
   runOn.snippet = s
@@ -48,6 +51,8 @@ function openRun(s) {
   runOn.results = []
 }
 async function execMany() {
+  const command = await resolveSnippet(runOn.snippet) // asked once for every host
+  if (command == null) return
   runOn.busy = true
   runOn.results = runOn.hosts.map((id) => ({
     host: store.vault.hosts.find((h) => h.id === id),
@@ -58,7 +63,7 @@ async function execMany() {
   await Promise.all(
     runOn.results.map(async (r) => {
       try {
-        const o = await api.ssh_exec({ host: r.host, command: runOn.snippet.command })
+        const o = await api.ssh_exec({ host: r.host, command })
         r.output = o.output
         r.code = o.code
       } catch (e) {
@@ -99,6 +104,10 @@ async function execMany() {
             <button class="iconbtn" @click="remove(s)"><Icon name="trash" /></button>
           </div>
           <pre class="mono">{{ s.command }}</pre>
+          <div v-if="varsOf(s.command).length" class="row vars">
+            <Icon name="edit" :size="11" />
+            <span v-for="v in varsOf(s.command)" :key="v.name" class="chip var mono">{{ v.name }}</span>
+          </div>
           <div v-if="s.tags?.length" class="row" style="gap: 4px">
             <span v-for="t in s.tags" :key="t" class="chip">{{ t }}</span>
           </div>
@@ -119,6 +128,16 @@ async function execMany() {
             required
             placeholder="sudo systemctl restart nginx"
           ></textarea>
+          <span class="dim hint">
+            <span class="mono" v-pre>{{ name }}</span> or <span class="mono" v-pre>{{name:default}}</span> is asked for
+            each time the snippet runs, for example
+            <span class="mono" v-pre>git checkout {{branch:main}}</span>
+          </span>
+          <div v-if="varsOf(edit.command).length" class="row" style="gap: 4px; flex-wrap: wrap">
+            <span v-for="v in varsOf(edit.command)" :key="v.name" class="chip var mono"
+              >{{ v.name }}<template v-if="v.def"> = {{ v.def }}</template></span
+            >
+          </div>
         </div>
         <div class="field">
           <label>Tags</label><input class="input" v-model="edit.tags" placeholder="nginx, deploy" />
@@ -208,5 +227,17 @@ pre {
 .res pre {
   max-height: 200px;
   margin-top: 4px;
+}
+.vars {
+  gap: 4px;
+  flex-wrap: wrap;
+  color: var(--text-3);
+}
+.chip.var {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.hint {
+  font-size: 12px;
 }
 </style>

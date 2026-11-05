@@ -56,6 +56,12 @@ export function prompt(title, { value = '', placeholder = '', label = '', okText
     store.dialog = { type: 'prompt', title, value, placeholder, label, okText, password, resolve }
   })
 }
+/** A dialog with several text fields: resolves { name: value } or null when cancelled. */
+export function form(title, fields, { message = '', detail = '', okText = 'OK' } = {}) {
+  return new Promise((resolve) => {
+    store.dialog = { type: 'form', title, message, detail, okText, fields: fields.map((f) => ({ ...f })), resolve }
+  })
+}
 export function confirm(title, message = '', { okText = 'Delete', danger = true, detail = '' } = {}) {
   return new Promise((resolve) => {
     store.dialog = { type: 'confirm', title, message, detail, okText, danger, resolve }
