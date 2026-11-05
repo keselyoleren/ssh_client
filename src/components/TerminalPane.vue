@@ -6,6 +6,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { api, Channel, asBytes, uid } from '../lib/api'
 import {
@@ -285,6 +286,37 @@ function runCommand(cmd) {
   write(cmd)
   if (props.tab.broadcast) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.write(cmd)
 }
+// ---------- files dropped from the OS: type their paths ----------
+const dropping = ref(false)
+let unlistenDrop = null,
+  unmounted = false
+/** Quote a path for the shell: POSIX single quotes, or double quotes for a Windows local shell. */
+function shellQuote(p) {
+  if (target.kind === 'local' && store.platform.os === 'windows') return /[\s&()^%!;,'"]/.test(p) ? `"${p}"` : p
+  return /^[\w@%+=:,./-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+}
+/** Is the (physical-pixel) drop position over this pane? */
+function overMe(pos) {
+  if (store.active !== props.tab.id || !props.visible || !root.value) return false
+  const r = window.devicePixelRatio || 1
+  const x = pos.x / r,
+    y = pos.y / r
+  const b = root.value.getBoundingClientRect()
+  return x >= b.left && x < b.right && y >= b.top && y < b.bottom
+}
+function onDragDrop(ev) {
+  const p = ev.payload
+  if (p.type === 'enter' || p.type === 'over') dropping.value = status.value === 'open' && overMe(p.position)
+  else if (p.type === 'drop') {
+    const hit = dropping.value || (status.value === 'open' && overMe(p.position))
+    dropping.value = false
+    if (!hit || !p.paths?.length) return
+    props.tab.focus = props.leaf.id
+    term.paste(p.paths.map(shellQuote).join(' ') + ' ')
+    term.focus()
+  } else dropping.value = false
+}
+
 async function paste() {
   try {
     const t = await readText()
@@ -474,6 +506,10 @@ onMounted(async () => {
   })
   ro = new ResizeObserver(scheduleFit)
   ro.observe(el.value)
+  getCurrentWebview()
+    .onDragDropEvent(onDragDrop)
+    .then((u) => (unmounted ? u() : (unlistenDrop = u)))
+    .catch(() => {})
   await nextTick()
   doFit()
   connect()
@@ -512,6 +548,8 @@ onBeforeUnmount(() => {
   cancelAnimationFrame(ghostRaf)
   ro?.disconnect()
   cancelAnimationFrame(raf)
+  unmounted = true
+  unlistenDrop?.()
   panes.delete(props.leaf.id)
   if (sid) api.term_close({ id: sid }).catch(() => {})
   sid = null
@@ -523,7 +561,7 @@ onBeforeUnmount(() => {
   <div
     ref="root"
     class="tp"
-    :class="{ focused: focused && split, broadcasting }"
+    :class="{ focused: focused && split, broadcasting, dropping }"
     :style="{ background: theme().background }"
   >
     <div
@@ -624,6 +662,11 @@ onBeforeUnmount(() => {
 }
 .tp.broadcasting.focused {
   border-color: var(--warn);
+}
+.tp.dropping,
+.tp.dropping.broadcasting {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .ph .bc {
   color: var(--warn);
