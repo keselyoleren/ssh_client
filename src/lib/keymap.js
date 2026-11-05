@@ -7,7 +7,17 @@
 // empty combo means "no shortcut".
 
 import { computed } from 'vue'
-import { store, openLocal, openSftp, closeTab, closePane, activeTab, splitFocused, toggleSidebar } from './store'
+import {
+  store,
+  openLocal,
+  openSftp,
+  closeTab,
+  closePane,
+  activeTab,
+  splitFocused,
+  toggleSidebar,
+  toggleBroadcast,
+} from './store'
 import { zoomBy, zoomReset } from './appearance'
 
 const isMac = () => store.platform.os === 'macos'
@@ -145,6 +155,14 @@ export const ACTIONS = [
       const t = activeTab()
       if (t?.kind === 'term') closePane(t, t.focus)
     },
+  },
+  {
+    id: 'broadcast',
+    group: 'Panes',
+    label: 'Broadcast input to all panes',
+    mac: ['Alt+Meta+I'],
+    pc: ['Ctrl+Shift+I'],
+    run: () => toggleBroadcast(),
   },
 
   { id: 'copy', group: 'Terminal', label: 'Copy selection', scope: 'terminal', mac: ['Meta+C'], pc: ['Ctrl+Shift+C'] },

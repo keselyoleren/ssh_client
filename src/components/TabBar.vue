@@ -157,6 +157,9 @@ const updateLabel = computed(() => {
           :style="{ background: t.color || (t.kind === 'sftp' ? 'var(--accent-2)' : 'var(--accent)') }"
         ></span>
         <Icon :name="t.kind === 'sftp' ? 'folder' : 'terminal'" :size="13" />
+        <span v-if="t.broadcast" class="bcast" title="Broadcasting input to the panes of this tab"
+          ><Icon name="broadcast" :size="12"
+        /></span>
         <span class="title">{{ t.title }}</span>
         <button class="x" @click.stop="close(t)"><Icon name="x" :size="12" /></button>
       </div>
@@ -298,6 +301,11 @@ const updateLabel = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.bcast {
+  display: inline-flex;
+  flex: none;
+  color: var(--warn);
 }
 .dot {
   width: 7px;

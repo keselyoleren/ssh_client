@@ -8,7 +8,18 @@ import { WebglAddon } from '@xterm/addon-webgl'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { api, Channel, asBytes, uid } from '../lib/api'
-import { store, panes, splitFocused, closePane, detachPane, openMenu, openSftp, loadVault } from '../lib/store'
+import {
+  store,
+  panes,
+  splitFocused,
+  closePane,
+  detachPane,
+  openMenu,
+  openSftp,
+  loadVault,
+  toggleBroadcast,
+  broadcastPeers,
+} from '../lib/store'
 import { termTheme } from '../lib/appearance'
 import { actionFor, withHint } from '../lib/keymap'
 import { promptInjection, MARKER } from '../lib/prompt'
@@ -28,6 +39,8 @@ const title = computed(() =>
   target.kind === 'local' ? target.title || 'Local' : target.host.label || target.host.host,
 )
 const focused = computed(() => props.tab.focus === props.leaf.id)
+/** This pane sends and receives broadcast input. */
+const broadcasting = computed(() => !!props.tab.broadcast && !props.leaf.noBroadcast)
 
 let term,
   fit,
@@ -126,7 +139,7 @@ function track(d) {
 function acceptGhost(word) {
   const t = word ? firstWord(ghost.value.text) : ghost.value.text
   tracker.input(t)
-  write(t)
+  typed(t)
   ghost.value = null
 }
 
@@ -254,6 +267,24 @@ async function connect() {
 const write = (data) => {
   if (sid && status.value === 'open') api.term_write({ id: sid, data }).catch(() => {})
 }
+
+// ---------- broadcast input ----------
+// xterm's onData also carries the terminal's own replies to the program running in it
+// (cursor position, device attributes, colour queries…), focus events and mouse reports.
+// Those belong to this pane only.
+const AUTOMATIC =
+  /^\x1b(\[[\d;?>]*[Rcn]|\[\?[\d;]*\$y|\[[IO]$|\[<[\d;]*[Mm]|\[M|\][\s\S]*(\x07|\x1b\\)$|P[\s\S]*\x1b\\$)/
+/** Send typed text to this pane and, with broadcast on, to the other panes of the tab. */
+function typed(d) {
+  write(d)
+  if (props.tab.broadcast && !AUTOMATIC.test(d)) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.input(d)
+}
+/** A whole command (snippet): every broadcasting pane runs it. */
+function runCommand(cmd) {
+  tracker.reset()
+  write(cmd)
+  if (props.tab.broadcast) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.write(cmd)
+}
 async function paste() {
   try {
     const t = await readText()
@@ -308,14 +339,31 @@ function menu(e) {
             label: s.name,
             icon: 'code',
             action: () => {
-              tracker.reset()
-              write(s.command + '\r')
+              runCommand(s.command + '\r')
               term.focus()
             },
           })),
         ]
       : []),
     '-',
+    ...(props.split
+      ? [
+          {
+            label: props.tab.broadcast ? 'Stop broadcasting input' : 'Broadcast input to all panes',
+            icon: 'broadcast',
+            action: () => toggleBroadcast(props.tab),
+          },
+        ]
+      : []),
+    ...(props.tab.broadcast
+      ? [
+          {
+            label: props.leaf.noBroadcast ? 'Include this pane in broadcast' : 'Leave this pane out of broadcast',
+            icon: 'broadcast',
+            action: () => (props.leaf.noBroadcast = !props.leaf.noBroadcast),
+          },
+        ]
+      : []),
     ...(props.split
       ? [{ label: 'Move to new tab', icon: 'popout', action: () => detachPane(props.tab, props.leaf.id) }]
       : []),
@@ -352,7 +400,7 @@ onMounted(async () => {
   term.onData((d) => {
     if (status.value === 'open') {
       track(d)
-      return write(d)
+      return typed(d)
     }
     if (d === '\r' && status.value !== 'connecting') {
       term.clear()
@@ -415,6 +463,12 @@ onMounted(async () => {
       tracker.reset() // snippets run as whole commands
       write(t)
     },
+    /** Keystrokes broadcast from another pane of the tab. */
+    input: (d) => {
+      if (status.value !== 'open') return // never reconnect a closed pane from another pane's Enter
+      track(d)
+      write(d)
+    },
     focus: () => term.focus(),
     term,
   })
@@ -466,7 +520,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="tp" :class="{ focused: focused && split }" :style="{ background: theme().background }">
+  <div
+    ref="root"
+    class="tp"
+    :class="{ focused: focused && split, broadcasting }"
+    :style="{ background: theme().background }"
+  >
     <div
       v-if="split"
       class="ph"
@@ -476,6 +535,19 @@ onBeforeUnmount(() => {
     >
       <span class="st" :class="status"></span>
       <span class="t">{{ title }}</span>
+      <button
+        v-if="tab.broadcast"
+        class="iconbtn bc"
+        :class="{ off: leaf.noBroadcast }"
+        @click="leaf.noBroadcast = !leaf.noBroadcast"
+        :title="
+          leaf.noBroadcast
+            ? 'Not receiving broadcast input: click to include this pane'
+            : 'Receiving broadcast input: click to leave this pane out'
+        "
+      >
+        <Icon name="broadcast" :size="13" />
+      </button>
       <button class="iconbtn" @click="splitFocused('row')" title="Split right">
         <Icon name="splitH" :size="13" />
       </button>
@@ -546,6 +618,20 @@ onBeforeUnmount(() => {
 }
 .tp.focused {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tp.broadcasting {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
+.tp.broadcasting.focused {
+  border-color: var(--warn);
+}
+.ph .bc {
+  color: var(--warn);
+  opacity: 1;
+}
+.ph .bc.off {
+  color: inherit;
+  opacity: 0.45;
 }
 .xt {
   flex: 1;

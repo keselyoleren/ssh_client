@@ -268,8 +268,42 @@ export function sendToFocused(text) {
   const p = tab && panes.get(tab.focus)
   if (!p) return toast('Open a terminal first', 'error')
   p.write(text)
+  if (tab.broadcast) for (const q of broadcastPeers(tab, tab.focus)) q.write(text)
   p.focus()
 }
+
+// ---------- broadcast input ----------
+// A terminal tab with `broadcast` on sends what is typed (or pasted, or a snippet) in one
+// pane to the other panes of the tab too. A pane opts out with `leaf.noBroadcast`.
+
+const leavesOf = (n) => (n.type === 'leaf' ? [n] : n.children.flatMap(leavesOf))
+
+/** Turn broadcast on/off for a terminal tab (the active one by default). */
+export function toggleBroadcast(tab = activeTab()) {
+  if (!tab || tab.kind !== 'term') return
+  if (!tab.broadcast && tab.root.type === 'leaf')
+    return toast('Split the tab first: broadcast sends input to the other panes of the tab')
+  tab.broadcast = !tab.broadcast
+  if (tab.broadcast) for (const l of leavesOf(tab.root)) l.noBroadcast = false
+}
+
+/** Live panes of `tab`, other than `fromId`, that receive broadcast input. */
+export function broadcastPeers(tab, fromId) {
+  const from = leavesOf(tab.root).find((l) => l.id === fromId)
+  if (!from || from.noBroadcast) return []
+  return leavesOf(tab.root)
+    .filter((l) => l.id !== fromId && !l.noBroadcast)
+    .map((l) => panes.get(l.id))
+    .filter(Boolean)
+}
+
+/** Broadcast stops by itself once a tab is down to one pane. */
+watch(
+  () => store.tabs.map((t) => t.broadcast && t.root.type === 'leaf'),
+  () => {
+    for (const t of store.tabs) if (t.broadcast && t.root.type === 'leaf') t.broadcast = false
+  },
+)
 
 // Persist settings whenever they are edited in place (from the Settings page or a shortcut
 // such as zoom). Replacing the whole object (loadVault) is not an edit and is skipped.
