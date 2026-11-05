@@ -144,6 +144,50 @@ async fn end_to_end() {
     println!("  ✔ throughput: {:.1} MB in {} ms", n as f64 / 1e6, t.elapsed().as_millis());
     terms.close("t2");
 
+    // agent forwarding: a throw-away local ssh-agent holding one key; the remote `ssh-add -l`
+    // must list that key's fingerprint through the forwarded agent channel.
+    println!("Agent forwarding");
+    let adir = std::env::temp_dir().join(format!("ksa-{}", &new_id()[..8]));
+    std::fs::create_dir_all(&adir).unwrap();
+    let sock = adir.join("agent.sock");
+    let keyf = adir.join("id");
+    let run = |cmd: &mut std::process::Command| {
+        let o = cmd.env("SSH_AUTH_SOCK", &sock).output().map_err(|e| e.to_string())?;
+        if o.status.success() {
+            Ok(String::from_utf8_lossy(&o.stdout).into_owned())
+        } else {
+            Err(String::from_utf8_lossy(&o.stderr).into_owned())
+        }
+    };
+    let started =
+        check!("start local ssh-agent", run(std::process::Command::new("ssh-agent").arg("-a").arg(&sock)));
+    let agent_pid =
+        started.split("SSH_AGENT_PID=").nth(1).and_then(|r| r.split(';').next()).unwrap_or("").to_string();
+    check!(
+        "generate agent key",
+        run(std::process::Command::new("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-N", "", "-C", "kshell-agent-test", "-f"])
+            .arg(&keyf))
+    );
+    check!("add key to agent", run(std::process::Command::new("ssh-add").arg(&keyf)));
+    let fp =
+        check!("agent key fingerprint", run(std::process::Command::new("ssh-keygen").arg("-lf").arg(&keyf)));
+    let fp = fp.split_whitespace().nth(1).unwrap().to_string(); // "SHA256:…"
+    std::env::set_var("SSH_AUTH_SOCK", &sock);
+    let (ch, buf, _) = capture();
+    let opts = ShellOptions { agent_forward: true, ..shell(100, 30, "") };
+    terms.open_ssh("t3".into(), conn.clone(), opts, ch).await.unwrap();
+    // The echoed command line contains `%s-END\n'`, only the real output contains `-END\r\n`.
+    terms.send("t3", Cmd::Write(b"ssh-add -l; printf 'RC=%s-END\\n' $?\n".to_vec())).unwrap();
+    let out = check!("remote ssh-add -l answered", wait_for(&buf, "-END\r\n", 10).await);
+    check!(
+        "forwarded agent lists the local key",
+        if out.contains(&fp) && out.contains("RC=0-END") { Ok(()) } else { Err(out) }
+    );
+    terms.close("t3");
+    let _ = std::process::Command::new("ssh-agent").arg("-k").env("SSH_AGENT_PID", &agent_pid).output();
+    let _ = std::fs::remove_dir_all(&adir);
+
     // key auth
     println!("Keys");
     let key = check!("generate ed25519", keys::generate("smoke", "ed25519", ""));

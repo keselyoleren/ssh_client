@@ -96,6 +96,45 @@ impl client::Handler for Client {
         }
         Ok(())
     }
+
+    /// The server opened an agent channel (someone ran `ssh-add -l`, `git`, `ssh` … on the
+    /// remote side of a shell started with agent forwarding): pipe it to the local agent.
+    /// russh's default accepts the channel and drops it, which leaves the remote client hanging.
+    async fn server_channel_open_agent_forward(
+        &mut self,
+        channel: Channel<Msg>,
+        reply: client::ChannelOpenHandle,
+        _session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        let Ok(agent) = local_agent().await else {
+            // No local agent: dropping `reply` rejects the channel, so the remote side
+            // gets an immediate error instead of a hang.
+            return Ok(());
+        };
+        reply.accept().await;
+        tokio::spawn(async move {
+            let mut agent = agent.into_inner();
+            let mut stream = channel.into_stream();
+            let _ = tokio::io::copy_bidirectional(&mut agent, &mut stream).await;
+        });
+        Ok(())
+    }
+}
+
+type LocalAgent = keys::agent::client::AgentClient<Box<dyn keys::agent::client::AgentStream + Send + Unpin>>;
+
+/// Connect to the local ssh-agent: `$SSH_AUTH_SOCK` on Unix, the OpenSSH named pipe or
+/// Pageant on Windows.
+async fn local_agent() -> Result<LocalAgent, keys::Error> {
+    #[cfg(unix)]
+    let agent = keys::agent::client::AgentClient::connect_env().await.map(|a| a.dynamic());
+    #[cfg(windows)]
+    let agent =
+        match keys::agent::client::AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
+            Ok(a) => Ok(a.dynamic()),
+            Err(_) => keys::agent::client::AgentClient::connect_pageant().await.map(|a| a.dynamic()),
+        };
+    agent
 }
 
 pub struct SshConn {
@@ -227,15 +266,7 @@ async fn try_key(handle: &mut Handle<Client>, user: &str, key: keys::PrivateKey)
 }
 
 async fn try_agent(handle: &mut Handle<Client>, user: &str) -> bool {
-    #[cfg(unix)]
-    let agent = keys::agent::client::AgentClient::connect_env().await.map(|a| a.dynamic());
-    #[cfg(windows)]
-    let agent =
-        match keys::agent::client::AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
-            Ok(a) => Ok(a.dynamic()),
-            Err(_) => keys::agent::client::AgentClient::connect_pageant().await.map(|a| a.dynamic()),
-        };
-    let Ok(mut agent) = agent else { return false };
+    let Ok(mut agent) = local_agent().await else { return false };
     let Ok(ids) = agent.request_identities().await else {
         return false;
     };
