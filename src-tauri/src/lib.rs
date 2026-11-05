@@ -87,6 +87,7 @@ pub fn run() {
             v::snippet_save,
             v::snippet_delete,
             v::settings_save,
+            v::session_save,
             v::workspace_save,
             v::workspace_delete,
             v::history_add,

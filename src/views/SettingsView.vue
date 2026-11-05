@@ -542,6 +542,13 @@ async function importConfig() {
               ></button>
             </div>
             <div class="set">
+              <div>
+                <b>Reopen tabs on launch</b>
+                <div class="dim">Tabs and split panes from the last session open again, and their sessions connect</div>
+              </div>
+              <button class="switch" :class="{ on: s.restore_tabs }" @click="s.restore_tabs = !s.restore_tabs"></button>
+            </div>
+            <div class="set">
               <b>Confirm before closing split tabs</b
               ><button
                 class="switch"

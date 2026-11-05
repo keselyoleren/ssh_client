@@ -157,6 +157,8 @@ pub struct Settings {
     pub sidebar_hidden: bool,
     /// Reconnect an SSH terminal by itself when its connection drops.
     pub auto_reconnect: bool,
+    /// Reopen the tabs that were open when the app was closed.
+    pub restore_tabs: bool,
 }
 
 impl Default for Settings {
@@ -185,6 +187,7 @@ impl Default for Settings {
             save_history: true,
             sidebar_hidden: false,
             auto_reconnect: true,
+            restore_tabs: true,
         }
     }
 }
@@ -203,6 +206,8 @@ pub struct VaultData {
     pub history: Vec<HistoryEntry>,
     /// Groups of local project folders.
     pub workspaces: Vec<Workspace>,
+    /// Tabs open when the app was last closed (layout written by the UI; hosts by id, no secrets).
+    pub session: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onBeforeUnmount, computed } from 'vue'
-import { store, loadVault, err } from './lib/store'
+import { store, loadVault, err, restoreSession } from './lib/store'
 import { actionFor } from './lib/keymap'
 import { initAppearance } from './lib/appearance'
 import { api } from './lib/api'
@@ -47,6 +47,7 @@ onMounted(async () => {
     store.platform = await api.platform()
     document.documentElement.dataset.os = store.platform.os
     await loadVault()
+    restoreSession()
   } catch (e) {
     err(e)
   }

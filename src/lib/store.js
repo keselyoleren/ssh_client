@@ -325,6 +325,79 @@ function autoTitle(tab) {
   return t.kind === 'local' ? t.title || 'Local' : t.host.label || t.host.host
 }
 
+// ---------- session: reopen the tabs of the last run ----------
+// Saved in the vault. SSH and file-manager hosts are stored by id and looked up again on
+// restore, so no password or key is copied; a host deleted since then is skipped.
+
+const hostRef = (h) =>
+  h?.id ? { id: h.id } : h ? { protocol: h.protocol, host: h.host, port: h.port, username: h.username } : null
+const hostOf = (ref) => (ref?.id ? store.vault.hosts.find((h) => h.id === ref.id) : ref?.host ? ref : null)
+
+function snapNode(n) {
+  if (n.type === 'split') return { type: 'split', dir: n.dir, ratio: n.ratio, children: n.children.map(snapNode) }
+  const t = n.target
+  if (t.kind === 'local') {
+    const { cwd, startup_command, title, workspace } = t
+    return { type: 'leaf', target: { kind: 'local', cwd, startup_command, title, workspace } }
+  }
+  return { type: 'leaf', target: { kind: 'ssh', host: hostRef(t.host) } }
+}
+function snapshot() {
+  if (!store.vault.settings.restore_tabs) return null
+  const tabs = store.tabs.map((t) => ({
+    kind: t.kind,
+    title: t.title,
+    renamed: !!t.renamed,
+    color: t.color,
+    ...(t.kind === 'sftp' ? { host: hostRef(t.host) } : { root: snapNode(t.root) }),
+  }))
+  return { tabs, active: store.tabs.findIndex((t) => t.id === store.active) }
+}
+
+function buildNode(n) {
+  if (n.type === 'split') {
+    const kids = n.children.map(buildNode).filter(Boolean)
+    if (kids.length < 2) return kids[0] || null
+    return { type: 'split', id: uid(), dir: n.dir, ratio: n.ratio || 0.5, children: kids }
+  }
+  if (n.target?.kind === 'local') return leaf({ ...n.target })
+  const h = hostOf(n.target?.host)
+  return h ? leaf({ kind: 'ssh', host: { ...h } }) : null
+}
+
+/** Reopen the tabs saved by the last run (called once, after the vault is loaded). */
+export function restoreSession() {
+  const s = store.vault.session
+  if (store.vault.settings.restore_tabs && s?.tabs?.length && !store.tabs.length) {
+    for (const st of s.tabs) {
+      let tab
+      if (st.kind === 'sftp') {
+        const h = st.host ? hostOf(st.host) : null
+        if (st.host && !h) continue
+        tab = { id: uid(), kind: 'sftp', title: st.title, host: h ? { ...h } : null, color: st.color || '' }
+      } else {
+        const root = st.root && buildNode(st.root)
+        if (!root) continue
+        tab = { id: uid(), kind: 'term', title: st.title, root, focus: firstLeaf(root).id, color: st.color || '' }
+      }
+      if (st.renamed) tab.renamed = true
+      else tab.title = autoTitle(tab) // follow host renames
+      store.tabs.push(tab)
+    }
+    store.active = store.tabs[s.active]?.id || store.tabs[0]?.id || 'vault'
+  }
+  // From now on keep the saved session in step with the open tabs.
+  let timer = 0
+  watch(
+    () => JSON.stringify(snapshot()),
+    (json) => {
+      clearTimeout(timer)
+      timer = setTimeout(() => api.session_save({ session: JSON.parse(json) }).catch(() => {}), 500)
+    },
+    { immediate: true },
+  )
+}
+
 // Persist settings whenever they are edited in place (from the Settings page or a shortcut
 // such as zoom). Replacing the whole object (loadVault) is not an edit and is skipped.
 let saveTimer = 0
