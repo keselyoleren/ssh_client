@@ -1,6 +1,7 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { homeDir } from '@tauri-apps/api/path'
 import { store, loadVault, err, confirm, openMenu, openProject, openWorkspace, toast } from '../lib/store'
 import { api } from '../lib/api'
 import Icon from '../components/Icon.vue'
@@ -12,6 +13,27 @@ const collapsed = ref(new Set())
 const wsEdit = ref(null) // { id, name, color, projects }
 const pjEdit = ref(null) // { wsId, fromWs, project: { id, name, path, startup_command } }
 const nameInput = ref(null)
+const layout = ref(localStorage.getItem('workspaces.layout') || 'grid')
+const setLayout = (l) => {
+  layout.value = l
+  try {
+    localStorage.setItem('workspaces.layout', l)
+  } catch {}
+}
+
+// Show paths under the home folder as ~/…
+const home = ref('')
+onMounted(() =>
+  homeDir()
+    .then((h) => (home.value = h.replace(/[\\/]+$/, '')))
+    .catch(() => {}),
+)
+const short = (p) => {
+  const h = home.value
+  return h && p.startsWith(h) && (p.length === h.length || '/\\'.includes(p[h.length])) ? '~' + p.slice(h.length) : p
+}
+const initial = (name) => (name.trim()[0] || '?').toUpperCase()
+const totalProjects = computed(() => workspaces.value.reduce((n, w) => n + (w.projects?.length || 0), 0))
 
 const workspaces = computed(() => store.vault.workspaces || [])
 const view = computed(() => {
@@ -32,6 +54,9 @@ const runningIn = (ws, p) =>
   store.tabs.filter(
     (t) => t.kind === 'term' && leaves(t.root).some((l) => l.target.workspace === ws.id && l.target.cwd === p.path),
   )
+
+/** Open terminal tabs across the projects of a workspace. */
+const openCount = (ws) => (ws.projects || []).reduce((n, p) => n + runningIn(ws, p).length, 0)
 
 function toggle(id) {
   const c = new Set(collapsed.value)
@@ -163,11 +188,26 @@ function openAll(ws) {
 <template>
   <div class="page">
     <div class="page-head">
-      <h1>Workspaces</h1>
-      <div class="search" v-if="workspaces.length">
-        <Icon name="search" :size="14" />
-        <input class="input" v-model="q" placeholder="Search projects or folders" />
-      </div>
+      <h1>
+        Workspaces
+        <span v-if="workspaces.length" class="sum"
+          >{{ workspaces.length }} workspace{{ workspaces.length === 1 ? '' : 's' }} · {{ totalProjects }} project{{
+            totalProjects === 1 ? '' : 's'
+          }}</span
+        >
+      </h1>
+      <template v-if="workspaces.length">
+        <div class="search">
+          <Icon name="search" :size="14" />
+          <input class="input" v-model="q" placeholder="Search projects or folders" />
+        </div>
+        <button class="iconbtn" :class="{ active: layout === 'grid' }" @click="setLayout('grid')" title="Grid">
+          <Icon name="grid" />
+        </button>
+        <button class="iconbtn" :class="{ active: layout === 'list' }" @click="setLayout('list')" title="List">
+          <Icon name="list" />
+        </button>
+      </template>
       <button class="btn primary" @click="newWorkspace"><Icon name="plus" :size="14" /> New workspace</button>
     </div>
 
@@ -190,19 +230,26 @@ function openAll(ws) {
       <section
         v-for="{ ws, projects } in view"
         :key="ws.id"
-        class="ws card"
+        class="ws"
         :style="{ '--ws': ws.color || 'var(--accent)' }"
       >
         <header @contextmenu="wsMenu($event, ws)">
-          <button class="iconbtn" :title="collapsed.has(ws.id) ? 'Expand' : 'Collapse'" @click="toggle(ws.id)">
-            <Icon :name="collapsed.has(ws.id) ? 'right' : 'down'" :size="14" />
-          </button>
-          <span class="dot"></span>
-          <b class="wname" @dblclick="editWorkspace(ws)">{{ ws.name }}</b>
-          <span class="dim count"
-            >{{ ws.projects?.length || 0 }} project{{ ws.projects?.length === 1 ? '' : 's' }}</span
+          <button
+            class="chev"
+            :class="{ shut: collapsed.has(ws.id) }"
+            :title="collapsed.has(ws.id) ? 'Expand' : 'Collapse'"
+            @click="toggle(ws.id)"
           >
-          <div class="grow"></div>
+            <Icon name="down" :size="14" />
+          </button>
+          <span class="avatar">{{ initial(ws.name) }}</span>
+          <div class="wtitle" @click="toggle(ws.id)">
+            <b class="wname" @dblclick.stop="editWorkspace(ws)" title="Double-click to edit">{{ ws.name }}</b>
+            <span class="wmeta">
+              {{ ws.projects?.length || 0 }} project{{ ws.projects?.length === 1 ? '' : 's' }}
+              <span v-if="openCount(ws)" class="live"><i></i>{{ openCount(ws) }} open</span>
+            </span>
+          </div>
           <button
             class="btn sm"
             :disabled="!ws.projects?.length"
@@ -211,30 +258,34 @@ function openAll(ws) {
           >
             <Icon name="play" :size="12" /> Open all
           </button>
-          <button class="btn sm" @click="newProject(ws)"><Icon name="plus" :size="12" /> Project</button>
+          <button class="iconbtn" title="Add project" @click="newProject(ws)"><Icon name="plus" :size="15" /></button>
           <button class="iconbtn" title="More" @click="wsMenu($event, ws)"><Icon name="more" :size="15" /></button>
         </header>
 
-        <template v-if="!collapsed.has(ws.id)">
+        <div v-if="!collapsed.has(ws.id)" :class="layout === 'grid' ? 'pgrid' : 'plist card'">
           <div
             v-for="p in projects"
             :key="p.id"
             class="pj"
-            @click="openProject(ws, p)"
-            @contextmenu="pjMenu($event, ws, p)"
+            :class="{ running: runningIn(ws, p).length }"
+            tabindex="0"
+            role="button"
             :title="`Open a terminal in ${p.path}`"
+            @click="openProject(ws, p)"
+            @keydown.enter.prevent="openProject(ws, p)"
+            @contextmenu="pjMenu($event, ws, p)"
           >
-            <span class="ficon"><Icon name="folder" :size="16" /></span>
+            <span class="ficon"><Icon name="folder" :size="17" /></span>
             <div class="pinfo">
               <div class="pname">
-                {{ p.name }}
-                <span v-if="runningIn(ws, p).length" class="open-badge">{{ runningIn(ws, p).length }} open</span>
+                <span class="ellip">{{ p.name }}</span>
+                <span v-if="runningIn(ws, p).length" class="open-badge"><i></i>{{ runningIn(ws, p).length }} open</span>
               </div>
-              <div class="ppath mono">{{ p.path }}</div>
+              <div class="ppath mono">{{ short(p.path) }}</div>
+              <div v-if="p.startup_command" class="cmd mono" :title="`Runs on open: ${p.startup_command}`">
+                <span class="prompt">$</span> {{ p.startup_command }}
+              </div>
             </div>
-            <span v-if="p.startup_command" class="cmd mono" :title="`Runs on open: ${p.startup_command}`"
-              ><Icon name="play" :size="10" /> {{ p.startup_command }}</span
-            >
             <div class="acts" @click.stop>
               <button class="iconbtn" title="Open terminal" @click="openProject(ws, p)">
                 <Icon name="terminal" :size="14" />
@@ -245,10 +296,10 @@ function openAll(ws) {
               </button>
             </div>
           </div>
-          <button v-if="!ws.projects?.length" class="addrow" @click="newProject(ws)">
-            <Icon name="plus" :size="14" /> Add a project folder
+          <button v-if="!q" class="addtile" @click="newProject(ws)">
+            <Icon name="plus" :size="15" /> {{ ws.projects?.length ? 'Add project' : 'Add a project folder' }}
           </button>
-        </template>
+        </div>
       </section>
     </div>
 
@@ -341,55 +392,176 @@ function openAll(ws) {
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
+.sum {
+  margin-left: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
 .ws {
-  margin-bottom: 14px;
-  overflow: hidden;
-  border-left: 3px solid var(--ws);
+  margin-bottom: 22px;
 }
 .ws header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px 8px 6px;
-  border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--ws) 6%, transparent);
+  gap: 10px;
+  padding: 4px 2px 10px;
 }
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--ws);
-}
-.wname {
-  font-size: 14px;
-}
-.count {
-  font-size: 12px;
-}
-.grow {
-  flex: 1;
-}
-.pj {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 12px 9px 16px;
-  border-bottom: 1px solid var(--line);
-  cursor: pointer;
-}
-.pj:last-child {
-  border-bottom: 0;
-}
-.pj:hover {
-  background: var(--bg-3);
-}
-.ficon {
-  width: 32px;
-  height: 32px;
+.chev {
+  width: 22px;
+  height: 22px;
   flex: none;
   display: grid;
   place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.chev:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+.chev.shut {
+  transform: rotate(-90deg);
+}
+.avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  background: var(--ws);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ws) 35%, transparent);
+}
+.wtitle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+.wname {
+  font-size: 14.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wmeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.live,
+.open-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--ok);
+}
+.live i,
+.open-badge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent);
+}
+.open-badge {
+  flex: none;
+  padding: 1px 7px 1px 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+/* ---- projects: grid ---- */
+.pgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  padding-left: 32px;
+}
+.pgrid .pj {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-2);
+  border-top: 2px solid color-mix(in srgb, var(--ws) 70%, transparent);
+  transition:
+    border-color 0.12s,
+    transform 0.12s,
+    box-shadow 0.12s;
+}
+.pgrid .pj:hover,
+.pgrid .pj:focus-visible {
+  border-color: color-mix(in srgb, var(--ws) 55%, var(--line));
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+  outline: none;
+}
+.pgrid .acts {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px;
   border-radius: 8px;
+  background: var(--bg-2);
+}
+
+/* ---- projects: list ---- */
+.plist {
+  margin-left: 32px;
+  overflow: hidden;
+}
+.plist .pj {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.plist .pj:hover,
+.plist .pj:focus-visible {
+  background: var(--bg-3);
+  outline: none;
+}
+.plist .pinfo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 4px 16px;
+}
+.plist .cmd {
+  max-width: 260px;
+  margin-top: 0;
+}
+
+/* ---- shared ---- */
+.pj {
+  cursor: pointer;
+}
+.ficon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
   color: var(--ws);
   background: color-mix(in srgb, var(--ws) 14%, transparent);
 }
@@ -398,62 +570,80 @@ function openAll(ws) {
   flex: 1;
 }
 .pname {
-  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+.ellip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ppath {
+  margin-top: 2px;
   font-size: 11.5px;
   color: var(--text-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.open-badge {
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 99px;
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
 .cmd {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  max-width: 34%;
-  padding: 3px 8px;
-  border-radius: 6px;
-  font-size: 11.5px;
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 7px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 11px;
   color: var(--text-2);
   background: var(--bg-3);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cmd .prompt {
+  color: var(--ws);
+  font-weight: 700;
+}
 .acts {
   display: flex;
   opacity: 0;
   transition: opacity 0.12s;
 }
-.pj:hover .acts {
+.pj:hover .acts,
+.pj:focus-within .acts {
   opacity: 1;
 }
-.addrow {
+.addtile {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  width: 100%;
-  padding: 12px 16px;
-  border: 0;
+  min-height: 74px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
   background: none;
   color: var(--text-3);
   cursor: pointer;
+  transition:
+    color 0.12s,
+    border-color 0.12s,
+    background 0.12s;
 }
-.addrow:hover {
-  color: var(--accent);
-  background: var(--bg-3);
+.addtile:hover {
+  color: var(--ws);
+  border-color: var(--ws);
+  background: color-mix(in srgb, var(--ws) 6%, transparent);
+}
+.plist .addtile {
+  width: 100%;
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 0;
 }
 .colors {
   display: flex;
