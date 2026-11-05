@@ -55,7 +55,7 @@ onMounted(async () => {
   startUpdateChecks()
   window.addEventListener('keydown', onKey, true)
   window.addEventListener('contextmenu', (e) => {
-    if (!e.target.closest('input,textarea,.xterm')) e.preventDefault()
+    if (!e.target.closest('input,textarea,.xterm,.cm-editor')) e.preventDefault()
   })
 })
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
