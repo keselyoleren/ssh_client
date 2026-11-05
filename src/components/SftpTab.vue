@@ -5,6 +5,8 @@ import { api, Channel, uid, fmtSize } from '../lib/api'
 import { store, err, toast } from '../lib/store'
 import FilePane from './FilePane.vue'
 import TextEditor from './TextEditor.vue'
+import ImageViewer from './ImageViewer.vue'
+import { fileKind, runsWhenOpened } from '../lib/filetypes'
 import Icon from './Icon.vue'
 
 const props = defineProps({ tab: Object })
@@ -202,9 +204,33 @@ function closeEditor() {
   editing.value = null
   if (side) paneOf(side).value?.list()
 }
-function edit(side, e) {
+/** Open a file: mode 'text' | 'image' | 'external', or by its type when not given. */
+function edit(side, e, mode) {
+  mode ||= { image: 'image', binary: 'external' }[fileKind(e.name)] || 'text'
+  if (mode === 'external') return openExternal(side, e)
+  if (mode === 'image') return (viewing.value = { side, entry: e })
   if (e.size > 8 * 1024 * 1024) return toast('File too large to edit — transfer it instead', 'error')
   editing.value = { side, entry: e }
+}
+const viewing = ref(null) // image preview
+/** Hand the file to the app the OS associates with it (remote files: a downloaded copy). */
+async function openExternal(side, e) {
+  viewing.value = null
+  if (runsWhenOpened(e.name))
+    return toast(`K-Shell doesn't open ${e.name}: opening it would run or install it. Download it instead.`, 'error')
+  const remote = !!side.host
+  if (remote) toast(`Downloading ${e.name}…`)
+  try {
+    await api.fs_open_external({ id: side.fsid, path: e.path })
+    if (remote) toast(`Opened a downloaded copy of ${e.name}: changes stay on this computer`)
+  } catch (x) {
+    err(x)
+  }
+}
+/** The editor found binary content: offer the default app instead. */
+function notText(side, e) {
+  editing.value = null
+  openExternal(side, e)
 }
 </script>
 
@@ -273,7 +299,20 @@ function edit(side, e) {
     <div v-if="ghost.on" class="drag-ghost" :style="{ left: ghost.x + 12 + 'px', top: ghost.y + 8 + 'px' }">
       <Icon name="file" :size="13" /> {{ ghost.text }}
     </div>
-    <TextEditor v-if="editing" :side="editing.side" :entry="editing.entry" @close="closeEditor" />
+    <TextEditor
+      v-if="editing"
+      :side="editing.side"
+      :entry="editing.entry"
+      @close="closeEditor"
+      @binary="notText(editing.side, editing.entry)"
+    />
+    <ImageViewer
+      v-if="viewing"
+      :side="viewing.side"
+      :entry="viewing.entry"
+      @close="viewing = null"
+      @external="openExternal(viewing.side, viewing.entry)"
+    />
   </div>
 </template>
 

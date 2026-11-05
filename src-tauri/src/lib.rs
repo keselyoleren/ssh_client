@@ -115,6 +115,8 @@ pub fn run() {
             files::fs_remove,
             files::fs_chmod,
             files::fs_read_text,
+            files::fs_read_bytes,
+            files::fs_open_external,
             files::fs_write_text,
             files::fs_presign,
             files::local_stat,

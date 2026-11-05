@@ -5,7 +5,7 @@ import { toast, err, confirm } from '../lib/store'
 import Icon from './Icon.vue'
 
 const props = defineProps({ side: Object, entry: Object })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'binary'])
 const text = ref('')
 const orig = ref('')
 const loading = ref(true)
@@ -16,6 +16,7 @@ onMounted(async () => {
   try {
     text.value = orig.value = await api.fs_read_text({ id: props.side.fsid, path: props.entry.path })
   } catch (e) {
+    if (/not valid UTF-8/.test(String(e))) return emit('binary') // opens in the default app instead
     err(e)
     emit('close')
     return

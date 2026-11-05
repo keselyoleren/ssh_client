@@ -72,6 +72,34 @@ pub async fn fs_read_text(st: State<'_>, id: String, path: String) -> Res<String
     st.fs(&id)?.read_text(&path).await
 }
 
+/// Raw bytes of a file (up to 32 MB), for the image preview.
+#[tauri::command]
+pub async fn fs_read_bytes(st: State<'_>, id: String, path: String) -> Res<tauri::ipc::Response> {
+    let bytes = st.fs(&id)?.read_bytes(&path, 32 * 1024 * 1024).await?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+/// Extensions whose default app runs or installs the file. Keep in step with RUNS in
+/// src/lib/filetypes.js.
+const BLOCKED: &[&str] = &[
+    "exe", "msi", "bat", "cmd", "com", "scr", "ps1", "vbs", "js", "jse", "wsf", "hta", "lnk", "reg", "app",
+    "pkg", "dmg", "command", "tool", "workflow", "jar", "deb", "rpm", "apk", "appimage", "sh", "run", "bin",
+    "py", "pyw", "vbe", "msix", "appx", "msp", "cpl", "pif", "jnlp", "scpt", "terminal", "desktop",
+];
+
+/// Open a file with the app the OS associates with it. Remote files are downloaded to a
+/// temp folder first; changes made there are not uploaded back.
+#[tauri::command]
+pub async fn fs_open_external(app: tauri::AppHandle, st: State<'_>, id: String, path: String) -> Res<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let ext = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
+    if BLOCKED.contains(&ext.as_str()) {
+        return Err(format!("K-Shell doesn't open .{ext} files: opening one would run or install it"));
+    }
+    let local = st.fs(&id)?.local_copy(&path).await?;
+    app.opener().open_path(&local, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn fs_write_text(st: State<'_>, id: String, path: String, content: String) -> Res<()> {
     st.fs(&id)?.write_text(&path, &content).await

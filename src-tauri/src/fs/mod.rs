@@ -228,9 +228,8 @@ impl Fs {
         })
     }
 
-    /// Read a (small) text file, going through a temp file for remotes.
-    pub async fn read_text(&self, path: &str) -> Res<String> {
-        const LIMIT: u64 = 8 * 1024 * 1024;
+    /// Read a whole (small) file, going through a temp file for remotes.
+    pub async fn read_bytes(&self, path: &str, limit: u64) -> Res<Vec<u8>> {
         let tmp = temp_path();
         let local = if self.is_local() {
             path.to_string()
@@ -240,15 +239,34 @@ impl Fs {
         };
         let result = async {
             let meta = tokio::fs::metadata(&local).await.map_err(|e| e.to_string())?;
-            if meta.len() > LIMIT {
-                return Err("file is larger than 8 MB; download it instead".to_string());
+            if meta.len() > limit {
+                return Err(format!("file is larger than {} MB; download it instead", limit / (1024 * 1024)));
             }
-            let bytes = tokio::fs::read(&local).await.map_err(|e| e.to_string())?;
-            String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8 text".to_string())
+            tokio::fs::read(&local).await.map_err(|e| e.to_string())
         }
         .await;
         let _ = tokio::fs::remove_file(&tmp).await;
         result
+    }
+
+    /// Read a (small) text file, going through a temp file for remotes.
+    pub async fn read_text(&self, path: &str) -> Res<String> {
+        let bytes = self.read_bytes(path, 8 * 1024 * 1024).await?;
+        String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8 text".to_string())
+    }
+
+    /// A local path for `path` that other apps can open: the file itself for the local
+    /// filesystem, otherwise a fresh copy downloaded into a temp folder (keeping its name,
+    /// so the OS picks the right app).
+    pub async fn local_copy(&self, path: &str) -> Res<String> {
+        if self.is_local() {
+            return Ok(path.to_string());
+        }
+        let name = path.rsplit(['/', '\\']).find(|s| !s.is_empty()).unwrap_or("file");
+        let dir = std::env::temp_dir().join("kshell-open").join(&uuid::Uuid::new_v4().to_string()[..8]);
+        let local = dir.join(name).to_string_lossy().into_owned();
+        self.download(path, &local, &Progress::default()).await?;
+        Ok(local)
     }
 
     pub async fn write_text(&self, path: &str, content: &str) -> Res<()> {
