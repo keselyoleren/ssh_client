@@ -32,6 +32,7 @@ const entries = await api.fs_list({ id, path: '/var/log' })
 | `key_import` | `name, pem, passphrase` | `Key` |
 | `snippet_save` / `snippet_delete` | `snippet: Snippet` / `id` | `Snippet` / – |
 | `settings_save` | `settings: Settings` | – |
+| `session_save` | `session` (open tabs as JSON; hosts by id) | – (reopened on the next launch) |
 | `history_add` | `cmd, target` (`"local"`, `"local:<project folder>"` or host address) | – (deduplicated, last 2000 kept) |
 | `workspace_save` | `workspace: Workspace` | `Workspace` (ids filled in) |
 | `workspace_delete` | `id` | – |
@@ -54,6 +55,8 @@ const entries = await api.fs_list({ id, path: '/var/log' })
 | `ssh_test` | `host` | `"Connected in N ms"` |
 | `host_detect_os` | `host` | OS id such as `ubuntu`, also saved on the host |
 | `key_install` | `host, keyId` | – (appends the public key to `authorized_keys`) |
+| `log_dir` | – | session-log folder (from the settings, or `Documents/K-Shell Logs`) |
+| `log_dir_open` | – | – (creates the folder and opens it in the OS file manager) |
 
 `id` is chosen by the UI (a UUID). On the `onData` channel:
 
@@ -74,6 +77,10 @@ SSH connections are pooled per host id, so several terminals to one host share o
 | `fs_remove` | `id, path, isDir` | – (directories are removed recursively) |
 | `fs_chmod` | `id, path, mode` | – (local, SFTP and FTP via `SITE CHMOD`) |
 | `fs_read_text` / `fs_write_text` | `id, path` / `id, path, content` | `string` (max 8 MB) / – |
+| `fs_read_bytes` | `id, path` | raw bytes as `ArrayBuffer` (max 32 MB, used by the image preview) |
+| `fs_open_external` | `id, path, onChange: Channel` | watch id for remote files, `null` for local ones. Opens the file in the app the OS uses for it; remote files are downloaded to a temp copy first and `onChange` gets `{ type: "changed" }` each time that copy is saved. Files that run or install when opened are refused |
+| `fs_upload_back` | `wid` | – (uploads the watched copy to where it came from) |
+| `fs_unwatch` | `wid` | – |
 | `fs_presign` | `id, path, expiry` (seconds) | share URL: S3 pre-signed GET, Azure read-only SAS (needs the account key), GCS signed URL (needs a service-account key; untested against real GCS) |
 | `local_stat` | `path` | `{ is_dir, size }` |
 | `read_local_text` | `path` | `string` (max 1 MB, used to import key files) |
