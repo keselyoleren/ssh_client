@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onBeforeUnmount, computed } from 'vue'
+import { onMounted, onBeforeUnmount, computed, defineAsyncComponent } from 'vue'
 import { store, loadVault, err, restoreSession } from './lib/store'
 import { actionFor } from './lib/keymap'
 import { initAppearance } from './lib/appearance'
@@ -8,26 +8,25 @@ import { startUpdateChecks } from './lib/updater'
 import Sidebar from './components/Sidebar.vue'
 import TabBar from './components/TabBar.vue'
 import HostsView from './views/HostsView.vue'
-import KeysView from './views/KeysView.vue'
-import SnippetsView from './views/SnippetsView.vue'
-import ForwardsView from './views/ForwardsView.vue'
-import KnownHostsView from './views/KnownHostsView.vue'
-import SettingsView from './views/SettingsView.vue'
-import WorkspacesView from './views/WorkspacesView.vue'
-import TerminalLayer from './components/TerminalLayer.vue'
-import SftpTab from './components/SftpTab.vue'
-import HostEditor from './components/HostEditor.vue'
-import Palette from './components/Palette.vue'
 import Overlays from './components/Overlays.vue'
+
+// Everything not on screen at launch is loaded the first time it is needed: the terminal
+// (xterm.js and its renderer), the file manager and the other Vault pages stay out of the
+// startup bundle, so the app opens faster and holds less code in memory.
+const lazy = (load) => defineAsyncComponent({ loader: load, delay: 0 })
+const TerminalLayer = lazy(() => import('./components/TerminalLayer.vue'))
+const SftpTab = lazy(() => import('./components/SftpTab.vue'))
+const HostEditor = lazy(() => import('./components/HostEditor.vue'))
+const Palette = lazy(() => import('./components/Palette.vue'))
 
 const views = {
   hosts: HostsView,
-  keys: KeysView,
-  snippets: SnippetsView,
-  forwards: ForwardsView,
-  known: KnownHostsView,
-  settings: SettingsView,
-  workspaces: WorkspacesView,
+  keys: lazy(() => import('./views/KeysView.vue')),
+  snippets: lazy(() => import('./views/SnippetsView.vue')),
+  forwards: lazy(() => import('./views/ForwardsView.vue')),
+  known: lazy(() => import('./views/KnownHostsView.vue')),
+  settings: lazy(() => import('./views/SettingsView.vue')),
+  workspaces: lazy(() => import('./views/WorkspacesView.vue')),
 }
 const view = computed(() => views[store.view] || HostsView)
 
@@ -72,7 +71,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
         </div>
         <!-- all terminal panes share one layer so they can move between tabs without reconnecting -->
         <div class="pane-wrap" v-show="store.tabs.some((t) => t.id === store.active && t.kind === 'term')">
-          <TerminalLayer />
+          <TerminalLayer v-if="store.tabs.some((t) => t.kind === 'term')" />
         </div>
         <template v-for="t in store.tabs" :key="t.id">
           <div v-if="t.kind !== 'term'" class="pane-wrap" v-show="store.active === t.id">

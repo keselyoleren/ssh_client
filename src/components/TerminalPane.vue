@@ -347,6 +347,35 @@ function runCommand(cmd) {
   write(cmd)
   if (props.tab.broadcast) for (const p of broadcastPeers(props.tab, props.leaf.id)) p.write(cmd)
 }
+// ---------- renderer ----------
+// WebGL draws fast but every context holds GPU memory and a glyph atlas of a few MB, and
+// the webview only allows a handful of contexts at once. Panes of tabs you aren't looking
+// at give theirs back after a while (xterm falls back to its DOM renderer, which costs
+// nothing while hidden) and take a new one when they are shown again.
+const GL_IDLE_MS = 30_000
+let gl = null,
+  glTimer = 0
+function attachGl() {
+  if (gl || !term) return
+  try {
+    const a = new WebglAddon()
+    a.onContextLoss(() => {
+      a.dispose()
+      if (gl === a) gl = null
+    })
+    term.loadAddon(a)
+    gl = a
+  } catch {
+    gl = null // no WebGL: the DOM renderer stays
+  }
+}
+function releaseGl() {
+  if (!gl) return
+  const a = gl
+  gl = null
+  a.dispose()
+}
+
 // ---------- files dropped from the OS: type their paths ----------
 const dropping = ref(false)
 let unlistenDrop = null,
@@ -523,13 +552,7 @@ onMounted(async () => {
     }),
   )
   term.open(el.value)
-  try {
-    const gl = new WebglAddon()
-    gl.onContextLoss(() => gl.dispose())
-    term.loadAddon(gl)
-  } catch {
-    /* falls back to DOM renderer */
-  }
+  if (props.visible) attachGl()
 
   term.onData((d) => {
     if (status.value === 'open') {
@@ -625,11 +648,14 @@ onMounted(async () => {
 watch(
   () => props.visible,
   (v) => {
+    clearTimeout(glTimer)
     if (v)
       nextTick(() => {
+        attachGl()
         doFit()
         if (focused.value) term?.focus()
       })
+    else glTimer = setTimeout(releaseGl, GL_IDLE_MS)
   },
 )
 watch(
@@ -655,6 +681,7 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   cancelAnimationFrame(raf)
   unmounted = true
+  clearTimeout(glTimer)
   audio?.close().catch(() => {})
   clearTimeout(retryTimer)
   window.removeEventListener('online', onOnline)
