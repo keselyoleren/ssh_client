@@ -124,6 +124,26 @@ const BELLS = [
   { v: 'sound', label: 'Sound' },
   { v: 'both', label: 'Both' },
 ]
+// ---------- session logs ----------
+const logDir = ref('')
+const refreshLogDir = () =>
+  api
+    .log_dir()
+    .then((d) => (logDir.value = d))
+    .catch(() => {})
+onMounted(refreshLogDir)
+async function pickLogDir() {
+  const dir = await openDialog({ directory: true, multiple: false, defaultPath: logDir.value || undefined })
+  if (!dir) return
+  s.value.log_dir = dir
+  setTimeout(refreshLogDir, 400) // after the settings are saved
+}
+function resetLogDir() {
+  s.value.log_dir = ''
+  setTimeout(refreshLogDir, 400)
+}
+const openLogDir = () => api.log_dir_open().catch(err)
+
 async function pickLocalCwd() {
   const dir = await openDialog({ directory: true, multiple: false, defaultPath: s.value.local_cwd || undefined })
   if (dir) s.value.local_cwd = dir
@@ -718,6 +738,31 @@ async function importConfig() {
                 :class="{ on: s.confirm_close }"
                 @click="s.confirm_close = !s.confirm_close"
               ></button>
+            </div>
+          </div>
+
+          <div class="section-title">Session logs</div>
+          <div class="card pad">
+            <div class="set">
+              <div>
+                <b>Log terminal sessions</b>
+                <div class="dim">
+                  Saves what every new terminal prints to a plain-text file (colours and cursor codes removed), one file
+                  per session
+                </div>
+              </div>
+              <button class="switch" :class="{ on: s.session_log }" @click="s.session_log = !s.session_log"></button>
+            </div>
+            <div class="set">
+              <div>
+                <b>Log folder</b>
+                <div class="dim mono" style="word-break: break-all">{{ logDir }}</div>
+              </div>
+              <div class="row" style="gap: 6px">
+                <button class="btn" title="Choose folder" @click="pickLogDir"><Icon name="folder" :size="14" /></button>
+                <button v-if="s.log_dir" class="btn ghost sm" @click="resetLogDir">Default</button>
+                <button class="btn" @click="openLogDir">Open</button>
+              </div>
             </div>
           </div>
 

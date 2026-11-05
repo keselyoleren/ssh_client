@@ -40,7 +40,7 @@ fn http_answered(s: &str) -> bool {
 }
 
 fn shell(cols: u16, rows: u16, startup: &str) -> ShellOptions {
-    ShellOptions { cols, rows, startup_command: startup.into(), agent_forward: false }
+    ShellOptions { cols, rows, startup_command: startup.into(), agent_forward: false, log: None }
 }
 
 type Captured = (Channel<InvokeResponseBody>, Arc<Mutex<Vec<u8>>>, Arc<Mutex<Vec<String>>>);
@@ -406,6 +406,7 @@ async fn end_to_end() {
         shell: Some("/bin/sh".into()),
         cwd,
         startup_command: startup_command.into(),
+        log: None,
     };
     check!("spawn shell", terms.open_local("l1".into(), opts(None, ""), ch));
     terms.send("l1", Cmd::Write(b"echo local-$((40+2))\n".to_vec())).unwrap();

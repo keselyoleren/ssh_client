@@ -181,6 +181,10 @@ pub struct Settings {
     pub local_cwd: String,
     /// Follow the shell's working directory (OSC 7; a small hook is added to bash/zsh).
     pub track_cwd: bool,
+    /// Write a plain-text log of every terminal session.
+    pub session_log: bool,
+    /// Folder for session logs ("" = Documents/K-Shell Logs).
+    pub log_dir: String,
 }
 
 impl Default for Settings {
@@ -222,6 +226,8 @@ impl Default for Settings {
             local_shell: String::new(),
             local_cwd: String::new(),
             track_cwd: true,
+            session_log: false,
+            log_dir: String::new(),
         }
     }
 }

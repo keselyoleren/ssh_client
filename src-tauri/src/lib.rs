@@ -13,6 +13,7 @@ pub mod error;
 pub mod forward;
 pub mod fs;
 pub mod keys;
+pub mod sessionlog;
 pub mod ssh;
 pub mod ssh_config;
 pub mod state;
@@ -101,6 +102,8 @@ pub fn run() {
             term::term_open_ssh,
             term::term_open_local,
             term::term_write,
+            term::log_dir,
+            term::log_dir_open,
             term::term_resize,
             term::term_close,
             term::ssh_exec,

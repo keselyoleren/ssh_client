@@ -28,6 +28,8 @@ pub struct ShellOptions {
     /// Typed into the shell right after it starts (e.g. `tmux attach`).
     pub startup_command: String,
     pub agent_forward: bool,
+    /// Plain-text copy of the output, when session logging is on.
+    pub log: Option<crate::sessionlog::SessionLog>,
 }
 
 /// Parameters for a new local shell.
@@ -39,6 +41,8 @@ pub struct LocalOptions {
     pub cwd: Option<String>,
     /// Typed into the shell right after it starts (e.g. `npm run dev`).
     pub startup_command: String,
+    /// Plain-text copy of the output, when session logging is on.
+    pub log: Option<crate::sessionlog::SessionLog>,
 }
 
 /// Resolve a project folder: expands a leading "~" and checks that it exists.
@@ -113,6 +117,7 @@ impl Terminals {
         self.map.lock().insert(id.clone(), tx);
         let me = self.clone();
         let (mut read, write) = ch.split();
+        let mut log = opts.log;
         tokio::spawn(async move {
             let _conn = conn; // keep the connection alive for the shell's lifetime
             let mut buf: Vec<u8> = Vec::with_capacity(64 * 1024);
@@ -138,6 +143,7 @@ impl Terminals {
                                 None => break,
                             }
                         }
+                        if let Some(l) = log.as_mut() { l.write(&buf) }
                         send_raw(&out, &mut buf);
                         if done { break }
                     }
@@ -160,7 +166,7 @@ impl Terminals {
         opts: LocalOptions,
         out: Channel<InvokeResponseBody>,
     ) -> Res<()> {
-        let LocalOptions { cols, rows, shell, cwd, startup_command } = opts;
+        let LocalOptions { cols, rows, shell, cwd, startup_command, mut log } = opts;
         use portable_pty::{native_pty_system, CommandBuilder, PtySize};
         let pty = native_pty_system();
         let pair = pty.openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 }).s()?;
@@ -205,6 +211,9 @@ impl Terminals {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
+                        if let Some(l) = log.as_mut() {
+                            l.write(&buf[..n]);
+                        }
                         let _ = out2.send(InvokeResponseBody::Raw(buf[..n].to_vec()));
                     }
                 }
