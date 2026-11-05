@@ -28,6 +28,7 @@ import {
 } from '@codemirror/language'
 import { languages } from '@codemirror/language-data'
 import { tags as t } from '@lezer/highlight'
+import { isDarkTheme } from './themes'
 
 // File names language-data doesn't know (or gets wrong): config files and shell dotfiles.
 const BY_NAME = [
@@ -114,13 +115,6 @@ function chrome(c, dark) {
   )
 }
 
-const isDark = (hex) => {
-  const m = /^#?([0-9a-f]{6})/i.exec(hex || '')
-  if (!m) return true
-  const n = parseInt(m[1], 16)
-  return ((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114 < 140
-}
-
 /**
  * Mount an editor in `parent`.
  * opts: { doc, name, colors (terminal theme), onSave(), onEscape(), onDirty(bool), onStatus({ line, col }) }
@@ -201,5 +195,5 @@ export function createEditor(parent, opts) {
 }
 
 function themeFor(c) {
-  return [chrome(c, isDark(c.background)), syntaxHighlighting(highlight(c))]
+  return [chrome(c, isDarkTheme(c)), syntaxHighlighting(highlight(c))]
 }

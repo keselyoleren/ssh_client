@@ -5,7 +5,7 @@ import { checkForUpdate, installUpdate } from '../lib/updater'
 import { save as saveDialog, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { store, loadVault, toast, err, prompt, confirm } from '../lib/store'
 import { api } from '../lib/api'
-import { themes } from '../lib/themes'
+import { themes, isDarkTheme } from '../lib/themes'
 import { ACCENTS, ZOOMS, appMode, termTheme, termThemeId } from '../lib/appearance'
 import { hint } from '../lib/keymap'
 import Icon from '../components/Icon.vue'
@@ -47,6 +47,13 @@ const zoomKeys = computed(() => [hint('zoom_in'), hint('zoom_out'), hint('zoom_r
 
 // which slot a click on a terminal theme card assigns when "match app mode" is on
 const slot = ref(appMode() === 'light' ? 'light' : 'dark')
+/** Terminal themes split into dark and light; the light ones first while picking the light-mode theme. */
+const themeGroups = computed(() => {
+  const all = Object.entries(themes)
+  const dark = { label: 'Dark', items: all.filter(([, t]) => isDarkTheme(t)) }
+  const light = { label: 'Light', items: all.filter(([, t]) => !isDarkTheme(t)) }
+  return s.value.term_theme_sync && slot.value === 'light' ? [light, dark] : [dark, light]
+})
 function pickTermTheme(id) {
   if (s.value.term_theme_sync && slot.value === 'light') s.value.term_theme_light = id
   else s.value.term_theme = id
@@ -282,38 +289,46 @@ async function importConfig() {
                 <b>{{ themes[sl === 'dark' ? darkThemeId : lightThemeId]?.name }}</b>
               </button>
             </div>
-            <div class="themes">
-              <button
-                v-for="(th, id) in themes"
-                :key="id"
-                class="tcard"
-                :class="{
-                  on: s.term_theme_sync ? (slot === 'light' ? lightThemeId : darkThemeId) === id : termThemeId() === id,
-                }"
-                @click="pickTermTheme(id)"
-              >
-                <div class="tprev mono" :style="{ background: th.background, color: th.foreground }">
-                  <div>
-                    <span :style="{ color: th.green }">➜</span> <span :style="{ color: th.cyan }">~/app</span> ls
+            <template v-for="g in themeGroups" :key="g.label">
+              <div class="tgroup">
+                {{ g.label }} <span class="dim">· {{ g.items.length }}</span>
+              </div>
+              <div class="themes">
+                <button
+                  v-for="[id, th] in g.items"
+                  :key="id"
+                  class="tcard"
+                  :class="{
+                    on: s.term_theme_sync
+                      ? (slot === 'light' ? lightThemeId : darkThemeId) === id
+                      : termThemeId() === id,
+                  }"
+                  @click="pickTermTheme(id)"
+                >
+                  <div class="tprev mono" :style="{ background: th.background, color: th.foreground }">
+                    <div>
+                      <span :style="{ color: th.green }">➜</span> <span :style="{ color: th.cyan }">~/app</span> ls
+                    </div>
+                    <div>
+                      <span :style="{ color: th.blue }">src</span>&nbsp;
+                      <span :style="{ color: th.green }">run.sh</span>&nbsp;
+                      <span :style="{ color: th.red }">err.log</span>
+                    </div>
+                    <div>
+                      <span :style="{ color: th.magenta }">$</span>
+                      <i class="cur" :style="{ background: th.cursor }"></i>
+                    </div>
                   </div>
-                  <div>
-                    <span :style="{ color: th.blue }">src</span>&nbsp;
-                    <span :style="{ color: th.green }">run.sh</span>&nbsp;
-                    <span :style="{ color: th.red }">err.log</span>
+                  <div class="tname">
+                    <span>{{ th.name }}</span>
+                    <template v-if="s.term_theme_sync">
+                      <span v-if="darkThemeId === id" class="mtag">Dark</span>
+                      <span v-if="lightThemeId === id" class="mtag">Light</span>
+                    </template>
                   </div>
-                  <div>
-                    <span :style="{ color: th.magenta }">$</span> <i class="cur" :style="{ background: th.cursor }"></i>
-                  </div>
-                </div>
-                <div class="tname">
-                  <span>{{ th.name }}</span>
-                  <template v-if="s.term_theme_sync">
-                    <span v-if="darkThemeId === id" class="mtag">Dark</span>
-                    <span v-if="lightThemeId === id" class="mtag">Light</span>
-                  </template>
-                </div>
-              </button>
-            </div>
+                </button>
+              </div>
+            </template>
           </div>
         </template>
 
@@ -871,6 +886,14 @@ async function importConfig() {
 .slotbtn.on {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.tgroup {
+  margin: 14px 0 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 .themes {
   display: grid;
