@@ -155,6 +155,8 @@ pub struct Settings {
     pub save_history: bool,
     /// Left sidebar hidden (toggled with ⌘B / Ctrl+Shift+B).
     pub sidebar_hidden: bool,
+    /// Reconnect an SSH terminal by itself when its connection drops.
+    pub auto_reconnect: bool,
 }
 
 impl Default for Settings {
@@ -182,6 +184,7 @@ impl Default for Settings {
             autosuggest: true,
             save_history: true,
             sidebar_hidden: false,
+            auto_reconnect: true,
         }
     }
 }

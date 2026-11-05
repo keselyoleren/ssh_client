@@ -225,6 +225,11 @@ async function connect() {
     if (ev.type === 'exit') {
       cancelPrompt()
       status.value = 'closed'
+      // An SSH shell that ends without an exit status lost its connection: try again by itself.
+      if (target.kind === 'ssh' && ev.code == null && S().auto_reconnect !== false) {
+        term.write('\r\n\x1b[33m[connection lost]\x1b[0m\r\n')
+        return scheduleReconnect()
+      }
       term.write(
         `\r\n\x1b[2m[session closed${ev.code != null ? ' · exit ' + ev.code : ''}] press Enter to reconnect\x1b[0m\r\n`,
       )
@@ -255,14 +260,57 @@ async function connect() {
           .catch(() => {})
     }
     status.value = 'open'
+    retries = 0
     lastSize = term.cols + 'x' + term.rows
     scheduleFit()
   } catch (e) {
     cancelPrompt()
     status.value = 'error'
     message.value = String(e)
+    if (retries > 0) {
+      // reconnecting after a drop: the network may still be down, keep trying
+      term.write(`\x1b[2m✖ ${String(e)}\x1b[0m\r\n`)
+      return scheduleReconnect()
+    }
     term.write(`\r\n\x1b[31m✖ ${String(e)}\x1b[0m\r\n\x1b[2mPress Enter to retry\x1b[0m\r\n`)
   }
+}
+
+// ---------- auto-reconnect (SSH) ----------
+const RETRY_DELAYS = [1, 2, 4, 8, 15, 30, 30, 30, 30, 30] // seconds; about 3 minutes in all
+let retries = 0,
+  retryTimer = 0
+const reconnecting = ref(false)
+function scheduleReconnect() {
+  clearTimeout(retryTimer)
+  if (retries >= RETRY_DELAYS.length) {
+    reconnecting.value = false
+    retries = 0
+    term.write('\x1b[2mGave up reconnecting. Press Enter to try again.\x1b[0m\r\n')
+    return
+  }
+  const wait = RETRY_DELAYS[retries++]
+  reconnecting.value = true
+  term.write(
+    `\x1b[2mReconnecting in ${wait}s (attempt ${retries}/${RETRY_DELAYS.length}) · Enter: now · Ctrl+C: stop\x1b[0m\r\n`,
+  )
+  retryTimer = setTimeout(reconnectNow, wait * 1000)
+}
+function reconnectNow() {
+  clearTimeout(retryTimer)
+  reconnecting.value = false
+  if (unmounted) return
+  connect()
+}
+function stopReconnect() {
+  clearTimeout(retryTimer)
+  reconnecting.value = false
+  retries = 0
+  term.write('\x1b[2mStopped reconnecting. Press Enter to reconnect.\x1b[0m\r\n')
+}
+// Back online (Wi-Fi switched, laptop woke up): don't wait for the timer.
+function onOnline() {
+  if (reconnecting.value) reconnectNow()
 }
 
 const write = (data) => {
@@ -434,7 +482,9 @@ onMounted(async () => {
       track(d)
       return typed(d)
     }
+    if (reconnecting.value && d === '\x03') return stopReconnect()
     if (d === '\r' && status.value !== 'connecting') {
+      if (reconnecting.value) return reconnectNow()
       term.clear()
       connect()
     }
@@ -506,6 +556,7 @@ onMounted(async () => {
   })
   ro = new ResizeObserver(scheduleFit)
   ro.observe(el.value)
+  window.addEventListener('online', onOnline)
   getCurrentWebview()
     .onDragDropEvent(onDragDrop)
     .then((u) => (unmounted ? u() : (unlistenDrop = u)))
@@ -549,6 +600,8 @@ onBeforeUnmount(() => {
   ro?.disconnect()
   cancelAnimationFrame(raf)
   unmounted = true
+  clearTimeout(retryTimer)
+  window.removeEventListener('online', onOnline)
   unlistenDrop?.()
   panes.delete(props.leaf.id)
   if (sid) api.term_close({ id: sid }).catch(() => {})
@@ -571,7 +624,7 @@ onBeforeUnmount(() => {
       title="Drag to move this pane"
       @mousedown="emit('grab', $event, title)"
     >
-      <span class="st" :class="status"></span>
+      <span class="st" :class="reconnecting ? 'connecting' : status"></span>
       <span class="t">{{ title }}</span>
       <button
         v-if="tab.broadcast"

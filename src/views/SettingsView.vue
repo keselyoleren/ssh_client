@@ -531,6 +531,17 @@ async function importConfig() {
               ></button>
             </div>
             <div class="set">
+              <div>
+                <b>Reconnect SSH automatically</b>
+                <div class="dim">When a connection drops, retry for about 3 minutes</div>
+              </div>
+              <button
+                class="switch"
+                :class="{ on: s.auto_reconnect }"
+                @click="s.auto_reconnect = !s.auto_reconnect"
+              ></button>
+            </div>
+            <div class="set">
               <b>Confirm before closing split tabs</b
               ><button
                 class="switch"
