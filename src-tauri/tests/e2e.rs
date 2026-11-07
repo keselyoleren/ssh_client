@@ -340,6 +340,49 @@ async fn end_to_end() {
     let sftp = check!("open sftp", Fs::sftp(Pool::default().fresh(&vault, &ssh).await.unwrap()).await);
     exercise("SFTP", &sftp, "", &local_dir, &big).await;
 
+    println!("SFTP resume");
+    {
+        let home = sftp.home().await.unwrap();
+        let d = sftp.join(&home, "kshell-resume");
+        let _ = sftp.remove(&d, true).await;
+        check!("mkdir", sftp.mkdir(&d).await);
+        let remote = sftp.join(&d, "big.bin");
+        // an upload that died after 7 MB
+        let head = local_dir.join("head.bin");
+        std::fs::write(&head, &big[..7_000_000]).unwrap();
+        check!("partial upload", sftp.upload(&head.to_string_lossy(), &remote, &Progress::default()).await);
+        check!(
+            "partial size",
+            match sftp.stat(&remote).await {
+                Ok(Some((false, 7_000_000))) => Ok(()),
+                other => Err(format!("{other:?}")),
+            }
+        );
+        let p = Progress::default();
+        let full = local_dir.join("big.bin").to_string_lossy().into_owned();
+        check!("resume upload", sftp.upload_from(&full, &remote, 7_000_000, &p).await);
+        assert_eq!(p.done.load(std::sync::atomic::Ordering::Relaxed), 20_000_000);
+        // a download that died after 7 MB
+        let dl = local_dir.join("dl-resume.bin");
+        std::fs::write(&dl, &big[..7_000_000]).unwrap();
+        check!(
+            "resume download",
+            sftp.download_from(&remote, &dl.to_string_lossy(), 7_000_000, &Progress::default()).await
+        );
+        check!(
+            "resumed content identical",
+            if std::fs::read(&dl).unwrap() == big { Ok(()) } else { Err("mismatch") }
+        );
+        check!(
+            "missing file stats as None",
+            match sftp.stat(&sftp.join(&d, "nope")).await {
+                Ok(None) => Ok(()),
+                other => Err(format!("{other:?}")),
+            }
+        );
+        check!("cleanup", sftp.remove(&d, true).await);
+    }
+
     let ftp_h = Host {
         protocol: "ftp".into(),
         host: "127.0.0.1".into(),

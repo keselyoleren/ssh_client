@@ -186,10 +186,43 @@ pub fn read_local_text(path: String) -> Res<String> {
     std::fs::read_to_string(&path).ctx(&path)
 }
 
+/// What sits at the destination of a transfer, so the UI can offer to resume it.
+/// Returns `{ resumable: false }` when this pair of sessions can't resume, otherwise
+/// `{ resumable: true, exists, is_dir, size }` for `dst_dir/<name of src_path>`.
+#[tauri::command]
+pub async fn transfer_probe(
+    st: State<'_>,
+    src: String,
+    src_path: String,
+    dst: String,
+    dst_dir: String,
+) -> Res<Value> {
+    let s = st.fs(&src)?;
+    let d = st.fs(&dst)?;
+    if !resumable(&s, &d) {
+        return Ok(json!({ "resumable": false }));
+    }
+    let target = d.join(&dst_dir, &s.base_name(&src_path));
+    Ok(match d.stat(&target).await? {
+        Some((is_dir, size)) => json!({ "resumable": true, "exists": true, "is_dir": is_dir, "size": size }),
+        None => json!({ "resumable": true, "exists": false }),
+    })
+}
+
+/// Resume needs offset reads and writes on both ends, and no temp-file hop in between.
+fn resumable(s: &Fs, d: &Fs) -> bool {
+    s.can_resume() && d.can_resume() && (s.is_local() || d.is_local())
+}
+
 /// Copy a file or directory from session `src` into directory `dst_dir` of
 /// session `dst`. Progress is reported on `on_progress` every 200 ms as
-/// `{ total, done, file }`, then once more with `finished: true`.
+/// `{ total, done, resumed, file }` (`resumed`: bytes that were already at the
+/// destination), then once more with `finished: true`.
 /// Remote → remote copies go through a local temp file.
+///
+/// With `resume`, a destination file that is smaller than its source is continued
+/// from where it stops, one that is already the same size is skipped, and anything
+/// else is copied again from the start (see [`transfer_probe`]).
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn transfer(
@@ -201,6 +234,7 @@ pub async fn transfer(
     size: u64,
     dst: String,
     dst_dir: String,
+    resume: Option<bool>,
     on_progress: Channel<Value>,
 ) -> Res<()> {
     let s = st.fs(&src)?;
@@ -208,7 +242,8 @@ pub async fn transfer(
     let p = Progress::default();
     st.transfers.lock().insert(tid.clone(), p.clone());
 
-    let r = run_transfer(&s, &d, &src_path, is_dir, size, &dst_dir, &p, &on_progress).await;
+    let resume = resume.unwrap_or(false) && resumable(&s, &d);
+    let r = run_transfer(&s, &d, &src_path, is_dir, size, &dst_dir, resume, &p, &on_progress).await;
     st.transfers.lock().remove(&tid);
     if p.cancel.load(Ordering::Relaxed) {
         return Err("cancelled".into());
@@ -231,6 +266,7 @@ async fn run_transfer(
     is_dir: bool,
     size: u64,
     dst_dir: &str,
+    resume: bool,
     p: &Progress,
     on_progress: &Channel<Value>,
 ) -> Res<()> {
@@ -261,14 +297,14 @@ async fn run_transfer(
             while !stop.load(Ordering::Relaxed) {
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                 let file = current.lock().clone();
-                let _ =
-                    ch.send(json!({ "total": total, "done": p.done.load(Ordering::Relaxed), "file": file }));
+                let (done, resumed) = (p.done.load(Ordering::Relaxed), p.resumed.load(Ordering::Relaxed));
+                let _ = ch.send(json!({ "total": total, "done": done, "resumed": resumed, "file": file }));
             }
         });
     }
 
     let result: Res<()> = async {
-        for (rel, dir, _) in &items {
+        for (rel, dir, len) in &items {
             let sp = if rel.is_empty() { src_path.to_string() } else { s.join(src_path, rel) };
             let dp = if rel.is_empty() { target.clone() } else { d.join(&target, rel) };
             if *dir {
@@ -276,6 +312,9 @@ async fn run_transfer(
                 continue;
             }
             *current.lock() = if rel.is_empty() { name.clone() } else { rel.clone() };
+            if resume && resume_file(s, d, &sp, &dp, *len, p).await? {
+                continue;
+            }
             if s.is_local() {
                 d.upload(&sp, &dp, p).await?;
             } else if d.is_local() {
@@ -299,4 +338,28 @@ async fn run_transfer(
     let done = p.done.load(Ordering::Relaxed);
     let _ = on_progress.send(json!({ "total": total, "done": done, "file": name, "finished": true }));
     result
+}
+
+/// Finish one file of a resumed transfer. Returns `false` when the destination isn't a
+/// partial copy of the source, so the caller copies it from the start instead.
+async fn resume_file(s: &Fs, d: &Fs, sp: &str, dp: &str, len: u64, p: &Progress) -> Res<bool> {
+    let have = match d.stat(dp).await? {
+        Some((false, have)) if have > 0 && have <= len => have,
+        _ => return Ok(false),
+    };
+    if have < len {
+        if s.is_local() {
+            d.upload_from(sp, dp, have, p).await?;
+        } else {
+            s.download_from(sp, dp, have, p).await?;
+        }
+        // The source may have changed since the first attempt: check the result.
+        let got = d.stat(dp).await?.map(|(_, n)| n);
+        if got != Some(len) {
+            return Err(format!("{dp}: size after resume is {} bytes, expected {len}", got.unwrap_or(0)));
+        }
+    } else {
+        p.skip(len); // already complete
+    }
+    Ok(true)
 }

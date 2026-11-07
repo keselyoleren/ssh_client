@@ -128,6 +128,7 @@ pub fn run() {
             files::local_stat,
             files::read_local_text,
             files::transfer,
+            files::transfer_probe,
             files::transfer_cancel,
             // port forwarding
             forwards::forward_save,

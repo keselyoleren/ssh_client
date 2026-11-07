@@ -2,7 +2,7 @@
 
 use tokio::io::AsyncWriteExt;
 
-use super::progress::copy;
+use super::progress::{copy, open_at};
 use super::{Backend, Entry, Progress};
 use crate::error::{Ctx, Res};
 
@@ -91,6 +91,27 @@ impl Backend for Local {
 
     async fn upload(&self, local: &str, path: &str, p: &Progress) -> Res<()> {
         self.download(local, path, p).await
+    }
+
+    async fn stat(&self, path: &str) -> Res<Option<(bool, u64)>> {
+        match tokio::fs::metadata(path).await {
+            Ok(m) => Ok(Some((m.is_dir(), m.len()))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(format!("{path}: {e}")),
+        }
+    }
+
+    async fn download_from(&self, path: &str, local: &str, offset: u64, p: &Progress) -> Res<()> {
+        use tokio::io::AsyncSeekExt;
+        let mut src = tokio::fs::File::open(path).await.ctx(path)?;
+        src.seek(std::io::SeekFrom::Start(offset)).await.ctx(path)?;
+        let mut dst = open_at(local, offset).await?;
+        copy(src, &mut dst, p).await?;
+        dst.flush().await.s()
+    }
+
+    async fn upload_from(&self, local: &str, path: &str, offset: u64, p: &Progress) -> Res<()> {
+        self.download_from(local, path, offset, p).await
     }
 
     #[cfg(unix)]

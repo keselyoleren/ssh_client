@@ -1,9 +1,9 @@
 //! SFTP over an SSH connection (russh-sftp).
 
 use std::sync::Arc;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
-use super::progress::copy;
+use super::progress::{copy, open_at};
 use super::{rjoin, Backend, BoxFut, Entry, Progress};
 use crate::error::{Ctx, Res};
 use crate::ssh::SshConn;
@@ -92,6 +92,35 @@ impl Backend for Sftp {
     async fn upload(&self, local: &str, path: &str, p: &Progress) -> Res<()> {
         let src = tokio::fs::File::open(local).await.ctx(local)?;
         let mut dst = self.sftp.create(path).await.ctx(path)?;
+        copy(src, &mut dst, p).await?;
+        dst.shutdown().await.s()
+    }
+
+    async fn stat(&self, path: &str) -> Res<Option<(bool, u64)>> {
+        use russh_sftp::client::error::Error;
+        use russh_sftp::protocol::StatusCode;
+        match self.sftp.metadata(path).await {
+            Ok(m) => Ok(Some((m.is_dir(), m.size.unwrap_or(0)))),
+            Err(Error::Status(st)) if matches!(st.status_code, StatusCode::NoSuchFile) => Ok(None),
+            Err(e) => Err(format!("{path}: {e}")),
+        }
+    }
+
+    async fn download_from(&self, path: &str, local: &str, offset: u64, p: &Progress) -> Res<()> {
+        let mut src = self.sftp.open(path).await.ctx(path)?;
+        src.seek(std::io::SeekFrom::Start(offset)).await.ctx(path)?;
+        let mut dst = open_at(local, offset).await?;
+        copy(src, &mut dst, p).await?;
+        dst.flush().await.s()
+    }
+
+    async fn upload_from(&self, local: &str, path: &str, offset: u64, p: &Progress) -> Res<()> {
+        use russh_sftp::protocol::OpenFlags;
+        let mut src = tokio::fs::File::open(local).await.ctx(local)?;
+        src.seek(std::io::SeekFrom::Start(offset)).await.ctx(local)?;
+        // WRITE without TRUNCATE keeps the bytes already on the server.
+        let mut dst = self.sftp.open_with_flags(path, OpenFlags::WRITE).await.ctx(path)?;
+        dst.seek(std::io::SeekFrom::Start(offset)).await.ctx(path)?;
         copy(src, &mut dst, p).await?;
         dst.shutdown().await.s()
     }

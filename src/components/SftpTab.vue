@@ -2,7 +2,7 @@
 import { onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { api, Channel, uid, fmtSize } from '../lib/api'
-import { store, err, toast } from '../lib/store'
+import { store, err, toast, choose } from '../lib/store'
 import FilePane from './FilePane.vue'
 import TextEditor from './TextEditor.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -63,26 +63,56 @@ function pick(side, hostId) {
 // ---------- transfers ----------
 let running = 0
 const queue = []
-function enqueue(from, items, to, dstDir = to.path) {
+async function enqueue(from, items, to, dstDir = to.path) {
   if (!from.fsid || !to.fsid) return toast('Both panes must be connected', 'error')
   for (const e of items) {
+    const resume = await askResume(from, e, to, dstDir)
+    if (resume === null) continue
     const t = reactive({
       tid: uid(),
       name: e.name,
       total: e.size || 0,
       done: 0,
+      resumed: 0,
       state: 'queued',
       error: '',
       from,
       to,
       e,
       dstDir,
+      resume,
       started: 0,
     })
     transfers.unshift(t)
     queue.push(t)
+    pump()
   }
-  pump()
+}
+/**
+ * When the destination already holds part of `e`, ask what to do.
+ * Resolves true to resume, false to copy from the start, null to skip `e`.
+ */
+async function askResume(from, e, to, dstDir) {
+  let r
+  try {
+    r = await api.transfer_probe({ src: from.fsid, srcPath: e.path, dst: to.fsid, dstDir })
+  } catch {
+    return false
+  }
+  if (!r.resumable || !r.exists || r.is_dir !== !!e.is_dir) return false
+  if (!e.is_dir && !(r.size > 0 && r.size < e.size)) return false
+  const choice = await choose(
+    e.is_dir ? 'Folder already exists' : 'Resume transfer?',
+    e.is_dir
+      ? `"${e.name}" is already in the destination. Resume skips files that are complete and continues the partial ones.`
+      : `The destination already has ${fmtSize(r.size)} of ${fmtSize(e.size)} of "${e.name}".`,
+    [
+      { value: 'skip', label: 'Skip' },
+      { value: 'overwrite', label: 'Overwrite' },
+      { value: 'resume', label: 'Resume', primary: true },
+    ],
+  )
+  return choice === 'resume' ? true : choice === 'overwrite' ? false : null
 }
 function pump() {
   while (running < 3 && queue.length) run(queue.shift())
@@ -95,6 +125,7 @@ async function run(t) {
   ch.onmessage = (p) => {
     t.total = p.total
     t.done = p.done
+    t.resumed = p.resumed || 0
     if (p.file) t.file = p.file
   }
   try {
@@ -106,6 +137,7 @@ async function run(t) {
       size: t.e.size || 0,
       dst: t.to.fsid,
       dstDir: t.dstDir,
+      resume: t.resume,
       onProgress: ch,
     })
     t.state = 'done'
@@ -126,7 +158,7 @@ const clearDone = () =>
   transfers.splice(0, transfers.length, ...transfers.filter((t) => t.state === 'running' || t.state === 'queued'))
 const speed = (t) => {
   const s = (performance.now() - t.started) / 1000
-  return s > 0.5 ? fmtSize(t.done / s) + '/s' : ''
+  return s > 0.5 ? fmtSize((t.done - t.resumed) / s) + '/s' : ''
 }
 const pct = (t) => (t.total ? Math.min(100, (t.done / t.total) * 100) : t.state === 'done' ? 100 : 0)
 

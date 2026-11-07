@@ -84,14 +84,21 @@ SSH connections are pooled per host id, so several terminals to one host share o
 | `fs_presign` | `id, path, expiry` (seconds) | share URL: S3 pre-signed GET, Azure read-only SAS (needs the account key), GCS signed URL (needs a service-account key; untested against real GCS) |
 | `local_stat` | `path` | `{ is_dir, size }` |
 | `read_local_text` | `path` | `string` (max 1 MB, used to import key files) |
-| `transfer` | `tid, src, srcPath, isDir, size, dst, dstDir, onProgress: Channel` | resolves when done |
+| `transfer_probe` | `src, srcPath, dst, dstDir` | `{ resumable: false }`, or `{ resumable: true, exists, is_dir, size }` for what is already at the destination |
+| `transfer` | `tid, src, srcPath, isDir, size, dst, dstDir, resume?, onProgress: Channel` | resolves when done |
 | `transfer_cancel` | `tid` | – (the `transfer` call then rejects with `"cancelled"`) |
 
 `Entry` is `{ name, path, is_dir, is_link, size, mtime, perm }`. `mtime` is in Unix seconds, and `perm` holds POSIX mode
 bits or `null`.
 
 `transfer` copies a file or folder from session `src` into folder `dstDir` of session `dst`, between **any** two
-backends. `onProgress` receives `{ total, done, file }` about every 200 ms, then one message with `finished: true`.
+backends. `onProgress` receives `{ total, done, resumed, file }` about every 200 ms, then one message with
+`finished: true`. `resumed` is the part of `done` that was already at the destination.
+
+With `resume: true`, each destination file that is smaller than its source continues from where it stops and is
+checked for the right size afterwards, a file that is already the same size is skipped, and anything else is copied
+from the start. Resume works between the local file system and SFTP (either way). For other pairs `transfer_probe`
+answers `resumable: false` and `resume` is ignored.
 
 Remote paths always use `/`. Local paths use the OS separator returned as `sep` by `fs_open`. S3 paths look like
 `/<bucket>/<key>`, and `/` lists the buckets.

@@ -61,6 +61,23 @@ pub trait Backend {
     async fn presign(&self, _path: &str, _expiry_secs: u32) -> Res<String> {
         Err("share links are only available for object storage".into())
     }
+
+    // ---- resumable transfers (see `Fs::can_resume`) ----
+
+    /// `Some((is_dir, size))` when `path` exists, `None` when it does not.
+    async fn stat(&self, _path: &str) -> Res<Option<(bool, u64)>> {
+        Ok(None)
+    }
+    /// Continue a download: append remote `path` from byte `offset` onto the local
+    /// file `local`, which already holds the first `offset` bytes.
+    async fn download_from(&self, _path: &str, _local: &str, _offset: u64, _p: &Progress) -> Res<()> {
+        Err("resuming transfers is not supported for this connection".into())
+    }
+    /// Continue an upload: append the local file `local` from byte `offset` onto remote
+    /// `path`, which already holds the first `offset` bytes.
+    async fn upload_from(&self, _local: &str, _path: &str, _offset: u64, _p: &Progress) -> Res<()> {
+        Err("resuming transfers is not supported for this connection".into())
+    }
 }
 
 pub enum Fs {
@@ -132,6 +149,11 @@ impl Fs {
         matches!(self, Fs::Local(_))
     }
 
+    /// Backends that implement `stat`, `download_from` and `upload_from`.
+    pub fn can_resume(&self) -> bool {
+        matches!(self, Fs::Local(_) | Fs::Sftp(_))
+    }
+
     pub fn sep(&self) -> &'static str {
         if self.is_local() && cfg!(windows) {
             "\\"
@@ -199,6 +221,24 @@ impl Fs {
 
     pub async fn upload(&self, local: &str, path: &str, p: &Progress) -> Res<()> {
         dispatch!(self, b => b.upload(local, path, p).await)
+    }
+
+    pub async fn stat(&self, path: &str) -> Res<Option<(bool, u64)>> {
+        dispatch!(self, b => b.stat(path).await)
+    }
+
+    /// Continue an interrupted download of `path` into `local` from byte `offset`.
+    /// `p.done` starts at `offset`.
+    pub async fn download_from(&self, path: &str, local: &str, offset: u64, p: &Progress) -> Res<()> {
+        p.skip(offset);
+        dispatch!(self, b => b.download_from(path, local, offset, p).await)
+    }
+
+    /// Continue an interrupted upload of `local` to `path` from byte `offset`.
+    /// `p.done` starts at `offset`.
+    pub async fn upload_from(&self, local: &str, path: &str, offset: u64, p: &Progress) -> Res<()> {
+        p.skip(offset);
+        dispatch!(self, b => b.upload_from(local, path, offset, p).await)
     }
 
     pub async fn presign(&self, path: &str, expiry: u32) -> Res<String> {
@@ -314,6 +354,30 @@ mod tests {
         assert_eq!(rjoin("", "a"), "/a");
         assert_eq!(rjoin("/srv/", "a"), "/srv/a");
         assert_eq!(rjoin("/srv", "a"), "/srv/a");
+    }
+
+    #[tokio::test]
+    async fn resumes_a_partial_copy() {
+        use std::sync::atomic::Ordering;
+        let dir = std::env::temp_dir().join(format!("kshell-resume-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("src.bin");
+        let dst = dir.join("dst.bin");
+        let data: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
+        std::fs::write(&src, &data).unwrap();
+        // first 100 000 bytes arrived, plus a torn tail of junk that must be cut off
+        let mut partial = data[..100_000].to_vec();
+        partial.extend_from_slice(&[0xff; 500]);
+        std::fs::write(&dst, &partial).unwrap();
+
+        let fs = Fs::local();
+        assert_eq!(fs.stat(&dst.to_string_lossy()).await.unwrap(), Some((false, 100_500)));
+        assert_eq!(fs.stat(&dir.join("nope").to_string_lossy()).await.unwrap(), None);
+        let p = Progress::default();
+        fs.upload_from(&src.to_string_lossy(), &dst.to_string_lossy(), 100_000, &p).await.unwrap();
+        assert_eq!(std::fs::read(&dst).unwrap(), data);
+        assert_eq!(p.done.load(Ordering::Relaxed), 300_000, "progress starts at the offset");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

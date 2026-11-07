@@ -100,7 +100,8 @@ sorting, `walk`, text read/write, path joining.
 Transfers only need two primitives: **remote → local file** (`download`) and **local file → remote** (`upload`).
 `commands/files.rs::transfer` combines them. A remote → remote copy goes through a temp file. Progress and
 cancellation are handled by the `ProgressReader` / `ProgressWriter` adapters in `fs/progress.rs`, so backends only
-need to stream bytes.
+need to stream bytes. Backends that can resume (local and SFTP, see `Fs::can_resume`) also implement `stat`,
+`download_from` and `upload_from`, which continue a partial file from a byte offset.
 
 ## How to…
 

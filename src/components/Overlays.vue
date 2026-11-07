@@ -17,7 +17,13 @@ watch(
 /** Value of a dialog that was cancelled / confirmed. */
 const cancelValue = (d) => (d.type === 'confirm' ? false : null)
 const okValue = (d) =>
-  d.type === 'prompt' ? d.value : d.type === 'form' ? Object.fromEntries(d.fields.map((f) => [f.name, f.value])) : true
+  d.type === 'prompt'
+    ? d.value
+    : d.type === 'form'
+      ? Object.fromEntries(d.fields.map((f) => [f.name, f.value]))
+      : d.type === 'choose'
+        ? (d.choices.find((c) => c.primary) || d.choices[0]).value
+        : true
 function done(v) {
   const d = store.dialog
   store.dialog = null
@@ -80,7 +86,20 @@ function run(item) {
           />
         </div>
       </template>
-      <div class="modal-foot">
+      <div v-if="store.dialog.type === 'choose'" class="modal-foot">
+        <button
+          v-for="c in store.dialog.choices"
+          :key="c.value"
+          type="button"
+          class="btn"
+          :class="{ primary: c.primary }"
+          v-focus="!!c.primary"
+          @click="done(c.value)"
+        >
+          {{ c.label }}
+        </button>
+      </div>
+      <div v-else class="modal-foot">
         <button type="button" class="btn" @click="done(cancelValue(store.dialog))">Cancel</button>
         <button type="submit" class="btn" :class="store.dialog.danger ? 'danger' : 'primary'" v-focus>
           {{ store.dialog.okText }}
@@ -94,8 +113,8 @@ function run(item) {
 export default {
   directives: {
     focus: {
-      mounted: (el) => {
-        if (!el.closest('form')?.querySelector('input')) el.focus()
+      mounted: (el, binding) => {
+        if (binding.value !== false && !el.closest('form')?.querySelector('input')) el.focus()
       },
     },
   },

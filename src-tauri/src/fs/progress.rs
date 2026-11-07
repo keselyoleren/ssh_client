@@ -13,8 +13,19 @@ use crate::error::{Ctx, Res};
 pub struct Progress {
     /// Bytes moved so far.
     pub done: Arc<AtomicU64>,
+    /// Part of `done` that was already at the destination when a transfer resumed
+    /// (counted, but not moved), so the UI can work out the real speed.
+    pub resumed: Arc<AtomicU64>,
     /// Set to abort the transfer at the next read/write.
     pub cancel: Arc<AtomicBool>,
+}
+
+impl Progress {
+    /// Count `n` bytes that are already at the destination and won't be moved.
+    pub fn skip(&self, n: u64) {
+        self.done.fetch_add(n, Ordering::Relaxed);
+        self.resumed.fetch_add(n, Ordering::Relaxed);
+    }
 }
 
 fn cancelled() -> std::io::Error {
@@ -31,6 +42,16 @@ where
 {
     let mut r = tokio::io::BufReader::with_capacity(256 * 1024, ProgressReader { inner: src, p });
     tokio::io::copy_buf(&mut r, dst).await.map(|_| ()).s()
+}
+
+/// Open the local file `path` for appending at `offset`: anything past `offset` is cut
+/// off first, so a partial file that grew a torn tail is continued from a known point.
+pub async fn open_at(path: &str, offset: u64) -> Res<tokio::fs::File> {
+    use tokio::io::AsyncSeekExt;
+    let mut f = tokio::fs::OpenOptions::new().write(true).open(path).await.ctx(path)?;
+    f.set_len(offset).await.ctx(path)?;
+    f.seek(std::io::SeekFrom::Start(offset)).await.ctx(path)?;
+    Ok(f)
 }
 
 /// `AsyncRead` adapter that counts bytes and honours cancellation.

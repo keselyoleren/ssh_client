@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+- Resume interrupted transfers between this computer and an SFTP server. When the destination already holds part
+  of a file, the file manager asks to Resume, Overwrite or Skip. Resume continues from the bytes already there and
+  checks the final size. For a folder that already exists, Resume skips files that are complete and continues the
+  partial ones. FTP and object storage still copy from the start.
+
 ## [0.4.0] - 2026-11-05
 
 ### Added

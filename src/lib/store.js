@@ -62,6 +62,15 @@ export function form(title, fields, { message = '', detail = '', okText = 'OK' }
     store.dialog = { type: 'form', title, message, detail, okText, fields: fields.map((f) => ({ ...f })), resolve }
   })
 }
+/**
+ * A dialog with several buttons `{ value, label, primary? }`: resolves the `value` of the one clicked (Enter picks the
+ * primary one), or null when dismissed with Esc or a click outside.
+ */
+export function choose(title, message, choices, { detail = '' } = {}) {
+  return new Promise((resolve) => {
+    store.dialog = { type: 'choose', title, message, detail, choices, resolve }
+  })
+}
 export function confirm(title, message = '', { okText = 'Delete', danger = true, detail = '' } = {}) {
   return new Promise((resolve) => {
     store.dialog = { type: 'confirm', title, message, detail, okText, danger, resolve }
